@@ -19,6 +19,11 @@
             <h2>ログイン</h2>
             <input type="text" id="login-id" placeholder="アカウント名">
             <input type="password" id="login-pass" placeholder="パスワード">
+            <div>
+                <label style="font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" onchange="togglePass('login-pass')"> パスワードを表示
+                </label>
+            </div>
             <button onclick="login()">ログイン</button>
             <br><br>
             <button onclick="showScreen('register-screen')">新しいアカウントを作成</button>
@@ -28,7 +33,12 @@
             <h1>アカウント作成</h1>
             <p style="color:yellow; font-size:12px;">※いたずら防止のため、1つの端末につき5つまで作成可能です</p>
             <input type="text" id="reg-id" placeholder="新しいアカウント名">
-            <input type="password" id="reg-pass" placeholder="新しいパスワード">
+            <input type="password" id="reg-pass" placeholder="パスワード (6文字以上)">
+            <div>
+                <label style="font-size: 14px; cursor: pointer;">
+                    <input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示
+                </label>
+            </div>
             <button onclick="register()">作成してログイン</button>
             <button onclick="showScreen('login-screen')">戻る</button>
         </div>
@@ -52,10 +62,15 @@
         </div>
 
         <div id="friends-screen" class="screen hidden">
-            <h2>フレンド一覧</h2>
-            <button onclick="addFriend()">＋ アカウント名でフレンドを追加</button>
-            <br><br>
-            <div id="friends-list-container" class="list-container"></div>
+            <h2>フレンド</h2>
+            <button onclick="sendFriendRequest()">＋ アカウント名でリクエスト送信</button>
+            
+            <h3 style="margin-bottom: 5px;">📥 リクエスト一覧</h3>
+            <div id="friend-requests-container" class="list-container" style="max-height: 15vh; margin-bottom: 15px;"></div>
+
+            <h3 style="margin-bottom: 5px;">🤝 フレンド一覧</h3>
+            <div id="friends-list-container" class="list-container" style="max-height: 25vh;"></div>
+            
             <br>
             <button onclick="showScreen('home-screen')">戻る</button>
         </div>
@@ -96,7 +111,13 @@
 
         <div id="settings-screen" class="screen hidden">
             <h2>設定</h2>
-            <label><input type="checkbox" id="mobile-mode-check" onchange="toggleMobileMode()"> モバイル操作（スマホ用UI）をONにする</label>
+            <label>BGM 音量: <span id="bgm-val">50</span>%
+                <input type="range" id="bgm-volume" min="0" max="100" value="50" oninput="updateVolume()">
+            </label>
+            <br><br>
+            <label>効果音 音量: <span id="se-val">50</span>%
+                <input type="range" id="se-volume" min="0" max="100" value="50" oninput="updateVolume()">
+            </label>
             <br><br>
             <button onclick="deleteAccount()" style="background-color:#d9534f;">このアカウントを完全に削除する</button>
             <br><br>
@@ -137,18 +158,6 @@
             <div class="hud" id="play-hud">
                 <span>プレイ中</span>
                 <button onclick="quitPlay()">やめる</button>
-            </div>
-            
-            <div id="mobile-controls" class="hidden">
-                <div id="dpad">
-                    <button id="dpad-up">▲</button>
-                    <div style="display:flex;">
-                        <button id="dpad-left">◀</button>
-                        <button id="dpad-down">▼</button>
-                        <button id="dpad-right">▶</button>
-                    </div>
-                </div>
-                <button id="mobile-jump">JUMP</button>
             </div>
 
             <div id="clear-message" class="hidden">

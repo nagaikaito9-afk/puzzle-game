@@ -18,9 +18,3 @@ input { border: 1px solid #ccc; }
 #clear-message { text-align: center; background: rgba(0, 0, 0, 0.9); padding: 40px; border-radius: 10px; pointer-events: auto; }
 #editor-screen, #game-screen { background: transparent; pointer-events: none; }
 #editor-screen .hud, #editor-screen .toolbar, #game-screen .hud { pointer-events: auto; }
-
-/* モバイル用UI */
-#mobile-controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; }
-#dpad { display: flex; flex-direction: column; align-items: center; pointer-events: auto; }
-#dpad button { width: 50px; height: 50px; margin: 2px; background: rgba(255,255,255,0.3); border-radius: 10px; font-size: 20px; }
-#mobile-jump { width: 80px; height: 80px; border-radius: 50%; background: rgba(255,100,100,0.5); pointer-events: auto; font-weight: bold; margin-top: 25px; }

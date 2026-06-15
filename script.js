@@ -12,15 +12,94 @@ if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 // -------------------------------------------------------------------
 
+// --- BGM・SE システム (Web Audio API) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let bgmVol = 0.5;
+let seVol = 0.5;
+let isBgmPlaying = false;
+let bgmInterval = null;
+let bgmStep = 0;
+const bgmNotes = [261.63, 329.63, 392.00, 329.63, 261.63, 392.00, 440.00, 392.00]; // ピコピコメロディ
+
+function updateVolume() {
+    bgmVol = document.getElementById('bgm-volume').value / 100;
+    seVol = document.getElementById('se-volume').value / 100;
+    document.getElementById('bgm-val').innerText = document.getElementById('bgm-volume').value;
+    document.getElementById('se-val').innerText = document.getElementById('se-volume').value;
+    
+    if (bgmVol <= 0) toggleBGM(false);
+    else if (!isBgmPlaying && currentUser) toggleBGM(true);
+}
+
+function toggleBGM(play) {
+    if (play && !isBgmPlaying && bgmVol > 0) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        bgmInterval = setInterval(() => {
+            if (bgmVol <= 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(bgmNotes[bgmStep % bgmNotes.length] / 2, audioCtx.currentTime);
+            gain.gain.setValueAtTime(bgmVol * 0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+            bgmStep++;
+        }, 400);
+        isBgmPlaying = true;
+    } else if (!play && isBgmPlaying) {
+        clearInterval(bgmInterval);
+        isBgmPlaying = false;
+    }
+}
+
+function playSE(type) {
+    if (seVol <= 0) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const t = audioCtx.currentTime;
+
+    if (type === 'place') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(400, t);
+        gain.gain.setValueAtTime(seVol * 0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t); osc.stop(t + 0.1);
+    } else if (type === 'jump') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(300, t); osc.frequency.exponentialRampToValueAtTime(600, t + 0.1);
+        gain.gain.setValueAtTime(seVol * 0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t); osc.stop(t + 0.1);
+    } else if (type === 'death') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.3);
+        gain.gain.setValueAtTime(seVol * 0.5, t); gain.gain.linearRampToValueAtTime(0, t + 0.3);
+        osc.start(t); osc.stop(t + 0.3);
+    } else if (type === 'clear') {
+        osc.type = 'triangle';
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => osc.frequency.setValueAtTime(freq, t + i * 0.1));
+        gain.gain.setValueAtTime(seVol * 0.5, t); gain.gain.linearRampToValueAtTime(0, t + 0.6);
+        osc.start(t); osc.stop(t + 0.6);
+    } else if (type === 'key') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(880, t); osc.frequency.setValueAtTime(1760, t + 0.1);
+        gain.gain.setValueAtTime(seVol * 0.4, t); gain.gain.linearRampToValueAtTime(0, t + 0.2);
+        osc.start(t); osc.stop(t + 0.2);
+    }
+}
+// -------------------------------------------------------------------
+
+
 let currentUser = null;
 let currentMode = 'login';
 let currentBlockType = 'normal'; 
 let currentSpeed = 0.1;
-let isMobileMode = false;
 
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// --- アカウント・ログインシステム ---
+function togglePass(inputId) {
+    const el = document.getElementById(inputId);
+    el.type = el.type === "password" ? "text" : "password";
+}
+
 function login() {
     const id = document.getElementById('login-id').value;
     const pass = document.getElementById('login-pass').value;
@@ -30,6 +109,8 @@ function login() {
         if (snapshot.exists() && snapshot.val().password === pass) {
             currentUser = id;
             document.getElementById('player-name-display').innerText = currentUser;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            toggleBGM(true);
             showScreen('home-screen');
         } else {
             alert("IDかパスワードが違います");
@@ -44,6 +125,7 @@ function register() {
     const id = document.getElementById('reg-id').value;
     const pass = document.getElementById('reg-pass').value;
     if (!id || !pass) return alert("入力してください");
+    if (pass.length < 6) return alert("もっと安全性のあるパスワードにしてください（6文字以上必要です）");
 
     database.ref('users/' + id).once('value', snapshot => {
         if (snapshot.exists()) return alert("その名前はすでに使われています");
@@ -51,6 +133,8 @@ function register() {
             localStorage.setItem('accountCreateCount', (accCount + 1).toString());
             currentUser = id;
             document.getElementById('player-name-display').innerText = currentUser;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            toggleBGM(true);
             showScreen('home-screen');
         });
     });
@@ -62,45 +146,81 @@ function deleteAccount() {
             let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0');
             if (accCount > 0) localStorage.setItem('accountCreateCount', (accCount - 1).toString());
             currentUser = null;
+            toggleBGM(false);
             showScreen('login-screen');
         });
     }
 }
 
-// --- フレンドシステム ---
-function addFriend() {
-    const friendId = prompt("追加したいフレンドのアカウント名を入力してください");
-    if (!friendId) return;
-    if (friendId === currentUser) return alert("自分自身は追加できません");
+function sendFriendRequest() {
+    const targetId = prompt("リクエストを送るアカウント名を入力してください");
+    if (!targetId) return;
+    if (targetId === currentUser) return alert("自分自身には送れません");
 
-    database.ref('users/' + friendId).once('value', snapshot => {
+    database.ref('users/' + targetId).once('value', snapshot => {
         if (snapshot.exists()) {
-            database.ref('users/' + currentUser + '/friends/' + friendId).set(true);
-            alert(`${friendId} さんをフレンドに追加しました！`);
+            database.ref(`users/${targetId}/friendRequests/${currentUser}`).set(true);
+            alert(`${targetId} さんにフレンドリクエストを送信しました！`);
         } else {
             alert("入力されたアカウントが見つかりませんでした");
         }
     });
 }
 
+function acceptRequest(fromId) {
+    database.ref(`users/${currentUser}/friends/${fromId}`).set(true);
+    database.ref(`users/${fromId}/friends/${currentUser}`).set(true);
+    database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove();
+}
+
+function rejectRequest(fromId) {
+    database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove();
+}
+
+function removeFriend(friendId) {
+    if (confirm(`${friendId} さんをフレンドから削除しますか？`)) {
+        database.ref(`users/${currentUser}/friends/${friendId}`).remove();
+        database.ref(`users/${friendId}/friends/${currentUser}`).remove();
+    }
+}
+
 function showFriendsScreen() {
     showScreen('friends-screen');
-    const container = document.getElementById('friends-list-container');
-    container.innerHTML = '読み込み中...';
+    const reqContainer = document.getElementById('friend-requests-container');
+    const frContainer = document.getElementById('friends-list-container');
+    
+    database.ref(`users/${currentUser}/friendRequests`).on('value', snap => {
+        reqContainer.innerHTML = '';
+        if (!snap.exists()) return reqContainer.innerHTML = '<p style="text-align:center; font-size:14px;">届いているリクエストはありません</p>';
+        snap.forEach(child => {
+            const div = document.createElement('div');
+            div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
+            div.innerHTML = `
+                <span style="line-height:35px;">👤 ${child.key}</span>
+                <div>
+                    <button onclick="acceptRequest('${child.key}')" style="background-color:#4CAF50; padding:5px 10px;">承認</button>
+                    <button onclick="rejectRequest('${child.key}')" style="background-color:#d9534f; padding:5px 10px;">拒否</button>
+                </div>
+            `;
+            reqContainer.appendChild(div);
+        });
+    });
 
-    database.ref('users/' + currentUser + '/friends').on('value', snapshot => {
-        container.innerHTML = '';
-        if (!snapshot.exists()) return container.innerHTML = '<p style="text-align:center;">フレンドがいません</p>';
-        snapshot.forEach(child => {
-            const btn = document.createElement('button');
-            btn.innerText = `👤 ${child.key} のコースを見る`;
-            btn.onclick = () => showCourseList('friend', null, child.key);
-            container.appendChild(btn);
+    database.ref(`users/${currentUser}/friends`).on('value', snap => {
+        frContainer.innerHTML = '';
+        if (!snap.exists()) return frContainer.innerHTML = '<p style="text-align:center; font-size:14px;">フレンドがいません</p>';
+        snap.forEach(child => {
+            const div = document.createElement('div');
+            div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
+            div.innerHTML = `
+                <button style="flex:1; text-align:left;" onclick="showCourseList('friend', null, '${child.key}')">👤 ${child.key} のコース</button>
+                <button style="background-color:#d9534f; margin-left:5px; padding:5px 10px;" onclick="removeFriend('${child.key}')">削除</button>
+            `;
+            frContainer.appendChild(div);
         });
     });
 }
 
-// --- コース一覧・ソート・詳細・削除 ---
 let myCourses = JSON.parse(localStorage.getItem('myCourses')) || [];
 let viewingCourseKey = null;
 let viewingCourseData = null;
@@ -116,7 +236,6 @@ function showScreen(screenId) {
     currentMode = screenId.replace('-screen', '');
 }
 
-function toggleMobileMode() { isMobileMode = document.getElementById('mobile-mode-check').checked; }
 function goBackFromList() { showScreen(backScreenFromList); }
 
 function showCourseList(type, sortOrder, friendId = null) {
@@ -129,16 +248,10 @@ function showCourseList(type, sortOrder, friendId = null) {
     const searchInput = document.getElementById('course-search');
     
     container.innerHTML = '読み込み中...';
-    
-    if (type === 'world') {
-        searchInput.style.display = 'block';
-        searchInput.value = '';
-    } else {
-        searchInput.style.display = 'none';
-    }
+    if (type === 'world') { searchInput.style.display = 'block'; searchInput.value = ''; } 
+    else { searchInput.style.display = 'none'; }
 
     const renderList = (courses) => {
-        // 元の配列の位置を保存してから検索・表示に渡す
         currentLoadedCourses = courses.map((c, i) => ({ ...c, originalIndex: i }));
         filterCourses();
     };
@@ -169,12 +282,7 @@ function filterCourses() {
     const q = document.getElementById('course-search').value.toLowerCase();
     const container = document.getElementById('course-list-container');
     container.innerHTML = '';
-    
-    const filtered = currentLoadedCourses.filter(c => 
-        (c.name && c.name.toLowerCase().includes(q)) || 
-        (c.author && c.author.toLowerCase().includes(q))
-    );
-    
+    const filtered = currentLoadedCourses.filter(c => (c.name && c.name.toLowerCase().includes(q)) || (c.author && c.author.toLowerCase().includes(q)));
     if (filtered.length === 0) return container.innerHTML = '<p style="text-align:center;">見つかりませんでした</p>';
     
     filtered.forEach((course) => {
@@ -196,34 +304,23 @@ function showCourseDetail(course) {
     let plays = course.plays || 0; let clears = course.clears || 0;
     document.getElementById('detail-clear-rate').innerText = plays > 0 ? Math.floor((clears/plays)*100) : 0;
 
-    // いいねボタンの制御（1人1回）
     const likeBtn = document.getElementById('like-btn');
     likeBtn.innerText = "❤️ いいね！";
     likeBtn.disabled = false;
     
     if (viewingCourseKey) {
         database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', snap => {
-            if (snap.exists()) {
-                likeBtn.innerText = "❤️ いいね済み";
-                likeBtn.disabled = true;
-            }
+            if (snap.exists()) { likeBtn.innerText = "❤️ いいね済み"; likeBtn.disabled = true; }
         });
-    } else {
-        likeBtn.style.display = 'none'; // ローカルは非表示
-    }
+    } else { likeBtn.style.display = 'none'; }
 
     const delBtn = document.getElementById('delete-course-btn');
-    if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) {
-        delBtn.style.display = 'inline-block';
-    } else {
-        delBtn.style.display = 'none';
-    }
+    if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) delBtn.style.display = 'inline-block';
+    else delBtn.style.display = 'none';
 
     const cSec = document.getElementById('comment-section');
     cSec.innerHTML = '';
-    if (course.comments) {
-        Object.values(course.comments).forEach(c => cSec.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`);
-    }
+    if (course.comments) Object.values(course.comments).forEach(c => cSec.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`);
     showScreen('course-detail-screen');
 }
 
@@ -242,16 +339,12 @@ function deleteCourse() {
 function likeCourse() {
     if (!viewingCourseKey) return;
     const courseRef = database.ref(`worldCourses/${viewingCourseKey}`);
-    
     courseRef.child(`likedUsers/${currentUser}`).once('value', snap => {
         if (!snap.exists()) {
             courseRef.child(`likedUsers/${currentUser}`).set(true);
             courseRef.child('likes').transaction(likes => (likes || 0) + 1);
-            
-            // アラートなしで見た目を変更
             const likeBtn = document.getElementById('like-btn');
-            likeBtn.innerText = "❤️ いいね済み";
-            likeBtn.disabled = true;
+            likeBtn.innerText = "❤️ いいね済み"; likeBtn.disabled = true;
             document.getElementById('detail-likes').innerText = (parseInt(document.getElementById('detail-likes').innerText) || 0) + 1;
         }
     });
@@ -261,8 +354,6 @@ function postComment() {
     if (!viewingCourseKey) return;
     const text = document.getElementById('comment-select').value;
     database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: text });
-    
-    // アラートなしで即座に反映
     document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${text}</div>`;
     const btn = document.getElementById('post-comment-btn');
     btn.innerText = "送信完了！";
@@ -278,33 +369,26 @@ function startPlayFromDetail() {
 let currentCourseData = [];
 
 function startEditor() {
-    showScreen('editor-screen');
-    floor.visible = true;
+    showScreen('editor-screen'); floor.visible = true;
     clearScene(); currentCourseData = []; resetPlayerPosition();
     camPanX = 0; camPanZ = 0; 
 }
 
 function testPlay() {
-    showScreen('game-screen');
-    currentMode = 'test';
-    document.getElementById('mobile-controls').classList.toggle('hidden', !isMobileMode);
+    showScreen('game-screen'); currentMode = 'test';
     floor.visible = false; resetPlayerPosition();
 }
 
 function loadAndPlayCourse(courseData, isTest = false) {
     showScreen('game-screen');
-    document.getElementById('mobile-controls').classList.toggle('hidden', !isMobileMode);
-    floor.visible = false;
-    clearScene();
+    floor.visible = false; clearScene();
     courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false));
     resetPlayerPosition();
 }
 
 function quitPlay() {
     if (currentMode === 'test') {
-        showScreen('editor-screen'); 
-        floor.visible = true;
-        resetPlayerPosition();
+        showScreen('editor-screen'); floor.visible = true; resetPlayerPosition();
     } else {
         showScreen('home-screen');
     }
@@ -352,88 +436,56 @@ let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, p
 let camPanX = 0, camPanZ = 0;
 
 function updateCam() {
-    let targetX = player.position.x;
-    let targetZ = player.position.z;
-
-    if (currentMode === 'editor') {
-        targetX += camPanX;
-        targetZ += camPanZ;
-    }
-
-    camera.position.set(
-        targetX + camRadius * Math.sin(camPhi) * Math.sin(camTheta),
-        player.position.y + camRadius * Math.cos(camPhi),
-        targetZ + camRadius * Math.sin(camPhi) * Math.cos(camTheta)
-    );
-    if (!isNaN(targetX) && !isNaN(player.position.y) && !isNaN(targetZ)) {
-        camera.lookAt(targetX, player.position.y, targetZ);
-    } else {
-        resetPlayerPosition(); 
-    }
+    let targetX = player.position.x; let targetZ = player.position.z;
+    if (currentMode === 'editor') { targetX += camPanX; targetZ += camPanZ; }
+    camera.position.set(targetX + camRadius * Math.sin(camPhi) * Math.sin(camTheta), player.position.y + camRadius * Math.cos(camPhi), targetZ + camRadius * Math.sin(camPhi) * Math.cos(camTheta));
+    if (!isNaN(targetX) && !isNaN(player.position.y) && !isNaN(targetZ)) camera.lookAt(targetX, player.position.y, targetZ);
+    else resetPlayerPosition(); 
 }
 
 window.addEventListener('mousedown', e => { 
-    if(e.button===2 || isMobileMode) { 
-        isDragging=true; 
-        prevX=e.clientX||e.touches?.[0].clientX; 
-        prevY=e.clientY||e.touches?.[0].clientY; 
-    }
+    if(e.button===2) { isDragging=true; prevX=e.clientX; prevY=e.clientY; }
 });
-
 window.addEventListener('mousemove', e => {
     if(isDragging) {
-        let x = e.clientX||e.touches?.[0].clientX; let y = e.clientY||e.touches?.[0].clientY;
         if (e.shiftKey && currentMode === 'editor') {
-            let dx = (x - prevX) * 0.05;
-            let dy = (y - prevY) * 0.05;
+            let dx = (e.clientX - prevX) * 0.05; let dy = (e.clientY - prevY) * 0.05;
             camPanX -= Math.cos(camTheta) * dx - Math.sin(camTheta) * dy;
             camPanZ -= -Math.sin(camTheta) * dx - Math.cos(camTheta) * dy;
         } else {
-            camTheta -= (x - prevX)*0.01; camPhi -= (y - prevY)*0.01;
+            camTheta -= (e.clientX - prevX)*0.01; camPhi -= (e.clientY - prevY)*0.01;
             if(camPhi<0.1) camPhi=0.1; if(camPhi>Math.PI/2.1) camPhi=Math.PI/2.1;
         }
-        prevX=x; prevY=y;
+        prevX=e.clientX; prevY=e.clientY;
     }
 });
 window.addEventListener('mouseup', () => isDragging=false);
 
-window.addEventListener('touchstart', e => { if(isMobileMode && e.target===renderer.domElement) { isDragging=true; prevX=e.touches[0].clientX; prevY=e.touches[0].clientY; }});
-window.addEventListener('touchmove', e => {
-    if(isDragging && isMobileMode && e.target===renderer.domElement) {
-        camTheta -= (e.touches[0].clientX - prevX)*0.01; camPhi -= (e.touches[0].clientY - prevY)*0.01;
-        if(camPhi<0.1) camPhi=0.1; if(camPhi>Math.PI/2.1) camPhi=Math.PI/2.1;
-        prevX=e.touches[0].clientX; prevY=e.touches[0].clientY;
-    }
-});
-window.addEventListener('touchend', () => isDragging=false);
-
-
 // --- ブロック管理 ---
 let solidBlocks=[], customDeathBlocks=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
-function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customGoal=null; customStart=null; placed.clear(); meshList=[]; }
+let customKeys=[], customDoors=[], hasKey=false;
+
+function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customGoal=null; customStart=null; customKeys=[]; customDoors=[]; placed.clear(); meshList=[]; hasKey=false;}
 
 function removeBlockMesh(m) {
-    scene.remove(m);
-    meshList = meshList.filter(b => b !== m);
-    solidBlocks = solidBlocks.filter(b => b !== m);
-    customDeathBlocks = customDeathBlocks.filter(b => b !== m);
-    if (customGoal === m) customGoal = null;
-    if (customStart === m) customStart = null;
-    const posKey = `${m.position.x},${m.position.y},${m.position.z}`;
-    placed.delete(posKey);
+    scene.remove(m); meshList = meshList.filter(b => b !== m); solidBlocks = solidBlocks.filter(b => b !== m); customDeathBlocks = customDeathBlocks.filter(b => b !== m);
+    if (customGoal === m) customGoal = null; if (customStart === m) customStart = null;
+    placed.delete(`${m.position.x},${m.position.y},${m.position.z}`);
     currentCourseData = currentCourseData.filter(d => !(d.x === m.position.x && d.y === m.position.y && d.z === m.position.z));
 }
 
 const materials = {
-    'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6, 'fake': 0x111111,
-    'color-red': 0xff5555, 'color-blue': 0x5555ff, 'color-green': 0x55ff55, 'color-pink': 0xff88ff,
-    'jump': 0xadff2f, 'conveyor': 0x800080, 'speed': 0x0000ff, 'slow': 0x006400,
-    'death': 0xff0000, 'goal': 0xffff00, 'start': 0xffa500, 'key': 0xffd700, 'door': 0x222222
+    'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6, 'fake': 0x111111, 'color-red': 0xff5555, 'color-blue': 0x5555ff, 'color-green': 0x55ff55, 'color-pink': 0xff88ff,
+    'jump': 0xadff2f, 'conveyor': 0x800080, 'speed': 0x0000ff, 'slow': 0x006400, 'death': 0xff0000, 'goal': 0xffff00, 'start': 0xffa500, 'key': 0xffd700, 'door': 0x222222
 };
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 function placeBlock(type, pos, save=true) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
+    if (type === 'eraser') {
+        if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) removeBlockMesh(m); }
+        return;
+    }
     if (placed.has(posKey)) return;
     if (type==='goal' && customGoal){ scene.remove(customGoal); customGoal=null; }
     if (type==='start' && customStart){ scene.remove(customStart); customStart=null; }
@@ -442,16 +494,15 @@ function placeBlock(type, pos, save=true) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color: materials[type], transparent: type==='glass', opacity: 0.6}));
     mesh.position.copy(pos); mesh.userData = {type: type, opened: false}; scene.add(mesh); meshList.push(mesh);
     placed.add(posKey);
+    playSE('place');
     
     if (isSolid) solidBlocks.push(mesh);
-    if(type==='death') customDeathBlocks.push(mesh); 
-    else if(type==='goal') customGoal=mesh; 
-    else if(type==='start') customStart=mesh;
+    if(type==='death') customDeathBlocks.push(mesh); else if(type==='goal') customGoal=mesh; else if(type==='start') customStart=mesh;
+    else if(type==='key') customKeys.push(mesh); else if(type==='door') customDoors.push(mesh);
     
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z});
 }
 
-// ★消しゴムのクリック判定を修正しました
 window.addEventListener('mousedown', e => {
     if (e.button!==0 || e.target!==renderer.domElement || currentMode!=='editor') return;
     mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
@@ -459,8 +510,7 @@ window.addEventListener('mousedown', e => {
     const intersects = raycaster.intersectObjects([floor, ...meshList]);
     if (intersects.length>0) {
         if (currentBlockType === 'eraser') {
-            const clickedMesh = intersects[0].object;
-            if (clickedMesh !== floor) removeBlockMesh(clickedMesh); // ブロックを直接削除
+            const clickedMesh = intersects[0].object; if (clickedMesh !== floor) { removeBlockMesh(clickedMesh); playSE('place'); }
         } else {
             const p = new THREE.Vector3().copy(intersects[0].point).add(intersects[0].face.normal.clone().multiplyScalar(0.5));
             p.set(Math.round(p.x), Math.floor(p.y)+0.5, Math.round(p.z));
@@ -474,23 +524,22 @@ const keys = { w:false, s:false, a:false, d:false, space:false };
 window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=true; if(e.code==='Space') keys.space=true; });
 window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=false; if(e.code==='Space') keys.space=false; });
 
-const addTouch = (id, key) => {
-    const el = document.getElementById(id);
-    el.addEventListener('touchstart', e=>{ e.preventDefault(); keys[key]=true; });
-    el.addEventListener('touchend', e=>{ e.preventDefault(); keys[key]=false; });
-};
-addTouch('dpad-up','up'); addTouch('dpad-down','down'); addTouch('dpad-left','left'); addTouch('dpad-right','right'); addTouch('mobile-jump','space');
-
 let velocityY=0, isGrounded=false;
 function resetPlayerPosition() {
     player.position.set(customStart?customStart.position.x:0, customStart?customStart.position.y+1.0:1.0, customStart?customStart.position.z:0);
-    velocityY=0; 
+    velocityY=0; hasKey=false;
     document.getElementById('clear-message').classList.add('hidden');
+    customKeys.forEach(k => { k.visible = true; k.userData.collected = false; });
+    customDoors.forEach(d => { d.visible = true; d.userData.opened = false; });
 }
 
 function checkWall() {
     for (let b of solidBlocks) {
-        if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - b.position.y > -0.5 && player.position.y - b.position.y < 0.8) return true;
+        if (b.userData.opened) continue;
+        if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - b.position.y > -0.5 && player.position.y - b.position.y < 0.8) {
+            if (b.userData.type === 'door' && hasKey) { b.visible = false; b.userData.opened = true; hasKey = false; playSE('place'); continue; }
+            return true;
+        }
     } return false;
 }
 
@@ -498,18 +547,17 @@ function updatePhysics() {
     velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onType = null;
     if (floor.visible && player.position.y<=0.4) { player.position.y=0.4; velocityY=0; isGrounded=true; }
     for (let b of solidBlocks) {
+        if (b.userData.opened) continue;
         if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75 && player.position.y-b.position.y>0 && player.position.y-b.position.y<1.0 && velocityY<=0) {
             player.position.y = b.position.y+0.9; velocityY=0; isGrounded=true; onType=b.userData.type;
         }
     }
     
     if(onType==='conveyor') { player.position.z-=0.05; if(checkWall()) player.position.z+=0.05; }
-    if(onType==='jump') { velocityY=0.4; isGrounded=false; }
-    else if(keys.space && isGrounded) { velocityY=0.22; keys.space=false; }
+    if(onType==='jump') { velocityY=0.4; isGrounded=false; playSE('jump');}
+    else if(keys.space && isGrounded) { velocityY=0.22; keys.space=false; playSE('jump');}
     
-    if (player.position.y < -10 || isNaN(player.position.x) || isNaN(player.position.y) || isNaN(player.position.z)) { 
-        resetPlayerPosition(); 
-    }
+    if (player.position.y < -10 || isNaN(player.position.y)) { playSE('death'); resetPlayerPosition(); }
 }
 
 function animate() {
@@ -526,20 +574,29 @@ function animate() {
         updatePhysics();
         
         if (customGoal && player.position.distanceTo(customGoal.position)<1.2) {
-            document.getElementById('clear-message').classList.remove('hidden');
-            if (currentMode==='test') {
-                document.getElementById('btn-save-local').classList.remove('hidden');
-                document.getElementById('btn-publish').classList.remove('hidden');
-                document.getElementById('btn-back-home').classList.add('hidden');
-            } else {
-                document.getElementById('btn-save-local').classList.add('hidden');
-                document.getElementById('btn-publish').classList.add('hidden');
-                document.getElementById('btn-back-home').classList.remove('hidden');
-                if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/clears`).transaction(c => (c||0)+1); 
+            const msg = document.getElementById('clear-message');
+            if (msg.classList.contains('hidden')) {
+                playSE('clear');
+                msg.classList.remove('hidden');
+                if (currentMode==='test') {
+                    document.getElementById('btn-save-local').classList.remove('hidden');
+                    document.getElementById('btn-publish').classList.remove('hidden');
+                    document.getElementById('btn-back-home').classList.add('hidden');
+                } else {
+                    document.getElementById('btn-save-local').classList.add('hidden');
+                    document.getElementById('btn-publish').classList.add('hidden');
+                    document.getElementById('btn-back-home').classList.remove('hidden');
+                    if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/clears`).transaction(c => (c||0)+1); 
+                }
             }
         }
         for (let b of customDeathBlocks) {
-            if(Math.abs(player.position.x-b.position.x)<0.8 && Math.abs(player.position.z-b.position.z)<0.8 && Math.abs(player.position.y-b.position.y)<1.0) { resetPlayerPosition(); break; }
+            if(Math.abs(player.position.x-b.position.x)<0.8 && Math.abs(player.position.z-b.position.z)<0.8 && Math.abs(player.position.y-b.position.y)<1.0) { playSE('death'); resetPlayerPosition(); break; }
+        }
+        for (let k of customKeys) {
+            if (!k.userData.collected && player.position.distanceTo(k.position) < 1.0) {
+                k.userData.collected = true; k.visible = false; hasKey = true; playSE('key');
+            }
         }
     }
     updateCam(); renderer.render(scene, camera);

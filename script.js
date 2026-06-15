@@ -103,7 +103,6 @@ function showCourseList(type, sortOrder, friendId = null) {
     c.innerHTML = '読込中...'; s.style.display = type === 'world' ? 'block' : 'none'; s.value = '';
     const render = (courses) => { currentLoadedCourses = courses.map((co, i) => ({ ...co, originalIndex: i })); filterCourses(); };
     
-    // ★無限ロードのバグを修正済（child.key -> ch.key）
     if (type === 'world') { 
         t.innerText = sortOrder === 'popular' ? "世界のコース(人気順)" : "世界のコース(新着順)"; 
         database.ref('worldCourses').once('value', snap => { 
@@ -141,6 +140,7 @@ function showCourseDetail(course) {
 }
 
 function deleteCourse() { if (confirm("削除しますか？")) { if (viewingCourseType === 'world') { database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => showCourseList('world', 'new')); } else { myCourses.splice(viewingCourseIndex, 1); localStorage.setItem('myCourses', JSON.stringify(myCourses)); showCourseList('my', 'new'); } } }
+
 function likeCourse() {
     if (!viewingCourseKey) return; const r = database.ref(`worldCourses/${viewingCourseKey}`); const l = document.getElementById('like-btn'); l.disabled = true;
     r.child(`likedUsers/${currentUser}`).once('value', snap => {
@@ -149,14 +149,22 @@ function likeCourse() {
         l.disabled = false;
     });
 }
+
 function postComment() { if (!viewingCourseKey) return; const t = document.getElementById('comment-select').value; database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: t }); document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${t}</div>`; document.getElementById('post-comment-btn').innerText = "送信完了！"; setTimeout(() => { document.getElementById('post-comment-btn').innerText = "コメント送信"; }, 1500); }
 function startPlayFromDetail() { if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/plays`).transaction(p => (p || 0) + 1); loadAndPlayCourse(viewingCourseData, false); }
-function editCourseFromDetail() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, true, b.uuid, b.linkId); }); resetPlayerPosition(); camPanX = 0; camPanZ = 0; drawLinkLines(); }
+function editCourseFromDetail() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.linkId); }); resetPlayerPosition(); camPanX = 0; camPanZ = 0; drawLinkLines(); }
 
+// --- 自動スタート設置・エディタ開始 ---
 let currentCourseData = [];
-function startEditor() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; resetPlayerPosition(); camPanX = 0; camPanZ = 0; selectBlock('normal'); }
+function startEditor() { 
+    showScreen('editor-screen'); floor.visible = true; 
+    clearScene(); currentCourseData = []; camPanX = 0; camPanZ = 0; selectBlock('normal'); 
+    placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); 
+    resetPlayerPosition(); 
+}
+
 function testPlay() { showScreen('game-screen'); currentMode = 'test'; floor.visible = false; resetPlayerPosition(); }
-function loadAndPlayCourse(courseData, isTest = false) { showScreen('game-screen'); floor.visible = false; clearScene(); courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, true, b.uuid, b.linkId)); resetPlayerPosition(); }
+function loadAndPlayCourse(courseData, isTest = false) { showScreen('game-screen'); floor.visible = false; clearScene(); courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, b.linkId)); resetPlayerPosition(); }
 function quitPlay() { isFirstPerson = false; if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); drawLinkLines(); } else { showScreen('home-screen'); } }
 function saveLocalCourse() { const name = prompt("コース名を入力", "マイコース"); if (name) { myCourses.push({ name: name, data: JSON.parse(JSON.stringify(currentCourseData)) }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); alert("保存しました！"); quitPlay(); } }
 function publishCourse() { if (!currentUser) return alert("ログインが必要です"); const name = prompt("公開するコース名", "マイコース"); if (name) { const d = JSON.parse(JSON.stringify(currentCourseData)); myCourses.push({ name: name, data: d }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); database.ref('worldCourses').push({ name: name, author: currentUser, data: d, likes: 0, plays: 0, clears: 0 }).then(() => { alert("世界に公開しました！"); quitPlay(); }).catch(err => { alert("エラー: " + err.message); quitPlay(); }); } }
@@ -169,10 +177,13 @@ const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20
 const player = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshLambertMaterial({ color: 0x0000ff })); scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshLambertMaterial({ color: 0x228B22 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-// ★リンク（赤い線）の描画用グループ
+// ★エラーの原因だった raycaster と mouse の宣言を復活！
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
 let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); 
 
-let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, prevY = 0, camPanX = 0, camPanZ = 0;
+let camTheta = 0, camPhi = 1.0, camRadius = 12, camPanX = 0, camPanZ = 0;
 
 function updateCam() {
     let targetX = player.position.x; let targetZ = player.position.z;
@@ -186,7 +197,7 @@ function updateCam() {
     }
 }
 
-// --- ★ 50種類のブロック定義とテクスチャ生成 ---
+// --- 50種類のブロック定義とテクスチャ生成 ---
 const textureCache = {};
 function getCanvasTexture(type) {
     if (textureCache[type]) return textureCache[type];
@@ -201,8 +212,7 @@ function getCanvasTexture(type) {
         ctx.fillStyle='#add8e6'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(32,10); ctx.lineTo(32,54); ctx.moveTo(10,32); ctx.lineTo(54,32); ctx.moveTo(16,16); ctx.lineTo(48,48); ctx.moveTo(48,16); ctx.lineTo(16,48); ctx.stroke();
     } else if (type.startsWith('conv_')) {
         ctx.fillStyle='#444'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#ff0'; ctx.font="40px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle"; 
-        let txt = '↑'; if(type==='conv_s') txt='↓'; else if(type==='conv_e') txt='→'; else if(type==='conv_w') txt='←';
-        ctx.fillText(txt, 32, 36);
+        let txt = '↑'; if(type==='conv_s') txt='↓'; else if(type==='conv_e') txt='→'; else if(type==='conv_w') txt='←'; ctx.fillText(txt, 32, 36);
     } else if (type === 'sand') {
         ctx.fillStyle='#f4a460'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#d2691e'; for(let i=0;i<50;i++){ ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2); }
     } else if (type === 'metal') {
@@ -232,27 +242,18 @@ const BLOCKS = [
     {id:'p_leaf', n:'葉っぱ', d:'装飾', c:0x228b22}, {id:'p_cloud', n:'雲', d:'装飾', c:0xf0f8ff}
 ];
 
-// ★UIでの選択状態のハイライト
 function initSidebar() {
-    const c = document.getElementById('block-list-container'); 
-    if(!c) return; 
-    c.innerHTML = '';
+    const c = document.getElementById('block-list-container'); if(!c) return; c.innerHTML = '';
     BLOCKS.forEach(b => {
         c.innerHTML += `<button id="btn-${b.id}" class="block-btn" onclick="selectBlock('${b.id}')" style="width:100%; text-align:left; padding:8px; margin-bottom:5px; background-color:#333; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer;"><span style="font-weight:bold; font-size:15px; display:block;">${b.n}</span><span style="font-size:11px; color:#ccc;">${b.d}</span></button>`;
     });
-    const eb = document.createElement('button');
-    eb.id = "btn-eraser"; eb.innerText = "🧹 消しゴム";
-    eb.style.cssText = "width:100%; text-align:left; padding:10px; margin-bottom:15px; background-color:#d9534f; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer; font-weight:bold;";
-    eb.onclick = () => selectBlock('eraser');
-    c.prepend(eb);
 }
 initSidebar();
 
 function selectBlock(type) { 
     currentBlockType = type; 
     document.querySelectorAll('[id^="btn-"]').forEach(b => b.style.borderColor = 'transparent');
-    const btn = document.getElementById('btn-' + type);
-    if(btn) btn.style.borderColor = '#4CAF50';
+    const btn = document.getElementById('btn-' + type); if(btn) btn.style.borderColor = '#4CAF50';
 }
 setTimeout(() => selectBlock('normal'), 100);
 
@@ -298,8 +299,7 @@ function removeBlockMesh(m) {
     drawLinkLines();
 }
 
-// ★修正: uuid, linkIdを正しく保存・復元する引数構成にしました
-function placeBlock(type, pos, save=true, isLoad=false, loadUuid=null, loadLinkId=null) {
+function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadLinkId=null) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
     if (type === 'eraser') {
         if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) { removeBlockMesh(m); playSE('place'); } } return;
@@ -310,14 +310,13 @@ function placeBlock(type, pos, save=true, isLoad=false, loadUuid=null, loadLinkI
     const bDef = BLOCKS.find(b => b.id === type) || BLOCKS[0];
     const mesh = createMesh(bDef); mesh.position.copy(pos); 
     
-    // UUIDとlinkIdの管理を徹底
     const uuid = loadUuid || Math.random().toString(36).substring(2);
     mesh.userData = { type: type, uuid: uuid, linkId: loadLinkId || null, opened: false, collected: false, bDef: bDef };
     scene.add(mesh); meshList.push(mesh); placed.add(posKey);
     
-    if (!isLoad) playSE('place');
+    if (playSound) playSE('place');
     
-    if (!bDef.pass && !['goal','start','key'].includes(bDef.type)) solidBlocks.push(mesh);
+    if (!bDef.pass && !['goal','key'].includes(bDef.type)) solidBlocks.push(mesh);
     if (type.startsWith('death')) customDeathBlocks.push(mesh);
     if (type==='goal') customGoal=mesh; else if (type==='start') customStart=mesh;
     else if (type==='key') customKeys.push(mesh); else if (type==='door') customDoors.push(mesh);
@@ -326,7 +325,6 @@ function placeBlock(type, pos, save=true, isLoad=false, loadUuid=null, loadLinkI
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z, uuid:uuid, linkId:mesh.userData.linkId});
 }
 
-// --- リンク（ペア）機能 ---
 let linkSourceMesh = null;
 function handleRightClickLink(cx, cy) {
     mouse.set((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1);
@@ -334,14 +332,11 @@ function handleRightClickLink(cx, cy) {
     const intersects = raycaster.intersectObjects(meshList, true);
     if (intersects.length > 0) {
         let m = intersects[0].object; while(m.parent && m.parent.type==='Group') m=m.parent;
-        const t = m.userData.type;
-        const bDef = BLOCKS.find(b => b.id === t) || {};
-        const bt = bDef.type || t; 
+        const t = m.userData.type; const bDef = BLOCKS.find(b => b.id === t) || {}; const bt = bDef.type || t; 
         
         if (['key','door','warp','locked_warp'].includes(t) || ['key','door','warp','locked_warp'].includes(bt)) {
             if (!linkSourceMesh) {
-                linkSourceMesh = m;
-                alert("【ペア元を選択しました】\nもう一度、対応させたいブロックを右クリックしてください。");
+                linkSourceMesh = m; alert("【ペア元を選択しました】\nもう一度、対応させたいブロックを右クリックしてください。");
             } else {
                 if (linkSourceMesh === m) { linkSourceMesh=null; return alert("キャンセルしました"); }
                 linkSourceMesh.userData.linkId = m.userData.uuid; m.userData.linkId = linkSourceMesh.userData.uuid;
@@ -370,47 +365,69 @@ function drawLinkLines() {
     });
 }
 
-let rightClickStart = 0; let rightClickPos = {x:0, y:0};
+let isDragging = false, prevX = 0, prevY = 0;
+let rightClickStart = 0, rightClickPos = {x:0, y:0};
+
 window.addEventListener('mousedown', e => { 
-    if(e.button===2) { isDragging=true; prevX=e.clientX; prevY=e.clientY; rightClickStart = Date.now(); rightClickPos={x:e.clientX, y:e.clientY}; }
-    if (e.button!==0 || e.target!==renderer.domElement || currentMode!=='editor') return;
+    if (e.button === 2) { 
+        isDragging = true; prevX = e.clientX; prevY = e.clientY; 
+        rightClickStart = Date.now(); rightClickPos = {x: e.clientX, y: e.clientY}; 
+        return; 
+    }
     
-    // 左クリックでのブロック配置・消去処理
-    mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects([floor, ...meshList], true);
-    if (intersects.length>0) {
-        let hit = intersects[0].object; while(hit.parent && hit.parent.type==='Group') hit=hit.parent;
-        if (currentBlockType === 'eraser') {
-            if (hit !== floor) { removeBlockMesh(hit); playSE('place'); }
-        } else {
-            // Group内の部品をクリックした場合でも正確な座標を取得するための計算
-            let normal = intersects[0].face ? intersects[0].face.normal.clone() : new THREE.Vector3(0,1,0);
-            if (intersects[0].object.parent && intersects[0].object.parent.type === 'Group') {
-                normal.transformDirection(intersects[0].object.matrixWorld).normalize();
+    if (e.button === 0 && e.target.tagName === 'CANVAS' && currentMode === 'editor') {
+        mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects([floor, ...meshList], true);
+        
+        if (intersects.length > 0) {
+            let hit = intersects[0].object; 
+            while(hit.parent && hit.parent.type === 'Group') hit = hit.parent; 
+            
+            if (currentBlockType === 'eraser') {
+                if (hit !== floor) { removeBlockMesh(hit); playSE('place'); }
+            } else {
+                let n = new THREE.Vector3(0, 1, 0);
+                if (intersects[0].face) {
+                    n.copy(intersects[0].face.normal);
+                    const normalMatrix = new THREE.Matrix3().getNormalMatrix(intersects[0].object.matrixWorld);
+                    n.applyMatrix3(normalMatrix).normalize();
+                    if (Math.abs(n.x) > Math.abs(n.y) && Math.abs(n.x) > Math.abs(n.z)) { n.set(Math.sign(n.x), 0, 0); }
+                    else if (Math.abs(n.y) > Math.abs(n.x) && Math.abs(n.y) > Math.abs(n.z)) { n.set(0, Math.sign(n.y), 0); }
+                    else { n.set(0, 0, Math.sign(n.z)); }
+                }
+
+                let p;
+                if (hit === floor) {
+                    p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.5));
+                    p.x = Math.round(p.x); p.y = 0.5; p.z = Math.round(p.z);
+                } else {
+                    p = new THREE.Vector3().copy(hit.position).add(n);
+                    p.x = Math.round(p.x); p.y = Math.round(p.y - 0.5) + 0.5; p.z = Math.round(p.z);
+                }
+                
+                placeBlock(currentBlockType, p);
             }
-            const p = new THREE.Vector3().copy(intersects[0].point).add(normal.multiplyScalar(0.5));
-            p.set(Math.round(p.x), Math.floor(p.y)+0.5, Math.round(p.z));
-            placeBlock(currentBlockType, p, true, false);
         }
     }
 });
 
 window.addEventListener('mousemove', e => {
-    if(isDragging) {
+    if (isDragging) {
         if (e.shiftKey && currentMode === 'editor') {
             let dx = (e.clientX - prevX) * 0.05; let dy = (e.clientY - prevY) * 0.05;
-            camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta);
+            camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); 
+            camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta);
         } else {
             camTheta -= (e.clientX - prevX)*0.01; camPhi -= (e.clientY - prevY)*0.01;
-            if(camPhi<0.1) camPhi=0.1; if(camPhi>Math.PI/2.1) camPhi=Math.PI/2.1;
+            if (camPhi < 0.1) camPhi = 0.1; if (camPhi > Math.PI/2.1) camPhi = Math.PI/2.1;
         }
-        prevX=e.clientX; prevY=e.clientY;
+        prevX = e.clientX; prevY = e.clientY;
     }
 });
 
 window.addEventListener('mouseup', e => { 
-    isDragging=false; 
+    isDragging = false; 
     if (e.button === 2 && currentMode === 'editor') {
         let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y);
         if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY);

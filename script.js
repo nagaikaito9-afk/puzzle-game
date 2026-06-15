@@ -38,7 +38,9 @@ function login() {
 }
 
 function register() {
-    if (localStorage.getItem('hasAccountCreated')) return alert("この端末では既にアカウントを作成済みです（制限）");
+    let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0');
+    if (accCount >= 5) return alert("この端末で作成できるアカウントの上限(5個)に達しました");
+
     const id = document.getElementById('reg-id').value;
     const pass = document.getElementById('reg-pass').value;
     if (!id || !pass) return alert("入力してください");
@@ -46,13 +48,23 @@ function register() {
     database.ref('users/' + id).once('value', snapshot => {
         if (snapshot.exists()) return alert("その名前はすでに使われています");
         database.ref('users/' + id).set({ password: pass, friends: [] }).then(() => {
-            localStorage.setItem('hasAccountCreated', 'true');
+            localStorage.setItem('accountCreateCount', (accCount + 1).toString());
             currentUser = id;
             document.getElementById('player-name-display').innerText = currentUser;
-            alert("作成しました！");
             showScreen('home-screen');
         });
     });
+}
+
+function deleteAccount() {
+    if (confirm("本当にアカウントを削除しますか？\n（あなたが作ったコースは残りますが、二度とログインできなくなります）")) {
+        database.ref('users/' + currentUser).remove().then(() => {
+            let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0');
+            if (accCount > 0) localStorage.setItem('accountCreateCount', (accCount - 1).toString());
+            currentUser = null;
+            showScreen('login-screen');
+        });
+    }
 }
 
 // --- フレンドシステム ---
@@ -78,15 +90,11 @@ function showFriendsScreen() {
 
     database.ref('users/' + currentUser + '/friends').on('value', snapshot => {
         container.innerHTML = '';
-        if (!snapshot.exists()) {
-            container.innerHTML = '<p style="text-align:center;">フレンドがいません</p>';
-            return;
-        }
+        if (!snapshot.exists()) return container.innerHTML = '<p style="text-align:center;">フレンドがいません</p>';
         snapshot.forEach(child => {
-            const friendId = child.key;
             const btn = document.createElement('button');
-            btn.innerText = `👤 ${friendId} のコースを見る`;
-            btn.onclick = () => showCourseList('friend', null, friendId);
+            btn.innerText = `👤 ${child.key} のコースを見る`;
+            btn.onclick = () => showCourseList('friend', null, child.key);
             container.appendChild(btn);
         });
     });
@@ -99,6 +107,7 @@ let viewingCourseData = null;
 let viewingCourseType = null; 
 let viewingCourseIndex = null;
 let backScreenFromList = 'play-select-screen';
+let currentLoadedCourses = [];
 
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
@@ -117,17 +126,21 @@ function showCourseList(type, sortOrder, friendId = null) {
     
     const container = document.getElementById('course-list-container');
     const title = document.getElementById('course-list-title');
+    const searchInput = document.getElementById('course-search');
+    
     container.innerHTML = '読み込み中...';
+    
+    if (type === 'world') {
+        searchInput.style.display = 'block';
+        searchInput.value = '';
+    } else {
+        searchInput.style.display = 'none';
+    }
 
     const renderList = (courses) => {
-        container.innerHTML = '';
-        if (courses.length === 0) return container.innerHTML = '<p style="text-align:center;">コースがありません</p>';
-        courses.forEach((course, idx) => {
-            const btn = document.createElement('button');
-            btn.innerText = `${course.name} (❤️${course.likes || 0})`;
-            btn.onclick = () => { viewingCourseIndex = idx; showCourseDetail(course); };
-            container.appendChild(btn);
-        });
+        // 元の配列の位置を保存してから検索・表示に渡す
+        currentLoadedCourses = courses.map((c, i) => ({ ...c, originalIndex: i }));
+        filterCourses();
     };
     
     if (type === 'world') {
@@ -152,6 +165,26 @@ function showCourseList(type, sortOrder, friendId = null) {
     }
 }
 
+function filterCourses() {
+    const q = document.getElementById('course-search').value.toLowerCase();
+    const container = document.getElementById('course-list-container');
+    container.innerHTML = '';
+    
+    const filtered = currentLoadedCourses.filter(c => 
+        (c.name && c.name.toLowerCase().includes(q)) || 
+        (c.author && c.author.toLowerCase().includes(q))
+    );
+    
+    if (filtered.length === 0) return container.innerHTML = '<p style="text-align:center;">見つかりませんでした</p>';
+    
+    filtered.forEach((course) => {
+        const btn = document.createElement('button');
+        btn.innerText = `${course.name} (❤️${course.likes || 0}) / 作者: ${course.author || '自分'}`;
+        btn.onclick = () => { viewingCourseIndex = course.originalIndex; showCourseDetail(course); };
+        container.appendChild(btn);
+    });
+}
+
 function showCourseDetail(course) {
     viewingCourseKey = course.key || null;
     viewingCourseData = course.data;
@@ -162,6 +195,22 @@ function showCourseDetail(course) {
     
     let plays = course.plays || 0; let clears = course.clears || 0;
     document.getElementById('detail-clear-rate').innerText = plays > 0 ? Math.floor((clears/plays)*100) : 0;
+
+    // いいねボタンの制御（1人1回）
+    const likeBtn = document.getElementById('like-btn');
+    likeBtn.innerText = "❤️ いいね！";
+    likeBtn.disabled = false;
+    
+    if (viewingCourseKey) {
+        database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', snap => {
+            if (snap.exists()) {
+                likeBtn.innerText = "❤️ いいね済み";
+                likeBtn.disabled = true;
+            }
+        });
+    } else {
+        likeBtn.style.display = 'none'; // ローカルは非表示
+    }
 
     const delBtn = document.getElementById('delete-course-btn');
     if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) {
@@ -181,28 +230,43 @@ function showCourseDetail(course) {
 function deleteCourse() {
     if (confirm("本当にこのコースを削除しますか？")) {
         if (viewingCourseType === 'world') {
-            database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => {
-                alert("世界から削除しました"); showCourseList('world', 'new');
-            });
+            database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => showCourseList('world', 'new'));
         } else if (viewingCourseType === 'my') {
             myCourses.splice(viewingCourseIndex, 1);
             localStorage.setItem('myCourses', JSON.stringify(myCourses));
-            alert("ローカルから削除しました"); showCourseList('my', 'new');
+            showCourseList('my', 'new');
         }
     }
 }
 
 function likeCourse() {
     if (!viewingCourseKey) return;
-    database.ref(`worldCourses/${viewingCourseKey}/likes`).transaction(likes => (likes || 0) + 1);
-    alert("いいねしました！");
+    const courseRef = database.ref(`worldCourses/${viewingCourseKey}`);
+    
+    courseRef.child(`likedUsers/${currentUser}`).once('value', snap => {
+        if (!snap.exists()) {
+            courseRef.child(`likedUsers/${currentUser}`).set(true);
+            courseRef.child('likes').transaction(likes => (likes || 0) + 1);
+            
+            // アラートなしで見た目を変更
+            const likeBtn = document.getElementById('like-btn');
+            likeBtn.innerText = "❤️ いいね済み";
+            likeBtn.disabled = true;
+            document.getElementById('detail-likes').innerText = (parseInt(document.getElementById('detail-likes').innerText) || 0) + 1;
+        }
+    });
 }
 
 function postComment() {
-    if (!viewingCourseKey) return alert("ローカルコースにはコメントできません");
+    if (!viewingCourseKey) return;
     const text = document.getElementById('comment-select').value;
     database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: text });
-    alert("送信しました！"); showScreen('course-list-screen'); 
+    
+    // アラートなしで即座に反映
+    document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${text}</div>`;
+    const btn = document.getElementById('post-comment-btn');
+    btn.innerText = "送信完了！";
+    setTimeout(() => { btn.innerText = "コメント送信"; }, 1500);
 }
 
 function startPlayFromDetail() {
@@ -220,10 +284,9 @@ function startEditor() {
     camPanX = 0; camPanZ = 0; 
 }
 
-// ★バグ修正：テストモード時に正しく「テスト中」と認識されるように直しました
 function testPlay() {
     showScreen('game-screen');
-    currentMode = 'test'; // ★画面を切り替えた後にモードを上書きする
+    currentMode = 'test';
     document.getElementById('mobile-controls').classList.toggle('hidden', !isMobileMode);
     floor.visible = false; resetPlayerPosition();
 }
@@ -239,7 +302,7 @@ function loadAndPlayCourse(courseData, isTest = false) {
 
 function quitPlay() {
     if (currentMode === 'test') {
-        showScreen('editor-screen'); // 作り途中に戻る
+        showScreen('editor-screen'); 
         floor.visible = true;
         resetPlayerPosition();
     } else {
@@ -252,7 +315,6 @@ function saveLocalCourse() {
     if (name) {
         myCourses.push({ name: name, data: currentCourseData });
         localStorage.setItem('myCourses', JSON.stringify(myCourses));
-        alert("保存しました！「自分のコース」から遊べます。");
         quitPlay();
     }
 }
@@ -263,7 +325,7 @@ function publishCourse() {
         database.ref('worldCourses').push({
             name: name, author: currentUser, data: currentCourseData,
             likes: 0, plays: 0, clears: 0
-        }).then(() => { alert("公開しました！"); quitPlay(); });
+        }).then(() => { quitPlay(); });
     }
 }
 
@@ -321,7 +383,6 @@ window.addEventListener('mousedown', e => {
 window.addEventListener('mousemove', e => {
     if(isDragging) {
         let x = e.clientX||e.touches?.[0].clientX; let y = e.clientY||e.touches?.[0].clientY;
-        
         if (e.shiftKey && currentMode === 'editor') {
             let dx = (x - prevX) * 0.05;
             let dy = (y - prevY) * 0.05;
@@ -351,6 +412,18 @@ window.addEventListener('touchend', () => isDragging=false);
 let solidBlocks=[], customDeathBlocks=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
 function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customGoal=null; customStart=null; placed.clear(); meshList=[]; }
 
+function removeBlockMesh(m) {
+    scene.remove(m);
+    meshList = meshList.filter(b => b !== m);
+    solidBlocks = solidBlocks.filter(b => b !== m);
+    customDeathBlocks = customDeathBlocks.filter(b => b !== m);
+    if (customGoal === m) customGoal = null;
+    if (customStart === m) customStart = null;
+    const posKey = `${m.position.x},${m.position.y},${m.position.z}`;
+    placed.delete(posKey);
+    currentCourseData = currentCourseData.filter(d => !(d.x === m.position.x && d.y === m.position.y && d.z === m.position.z));
+}
+
 const materials = {
     'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6, 'fake': 0x111111,
     'color-red': 0xff5555, 'color-blue': 0x5555ff, 'color-green': 0x55ff55, 'color-pink': 0xff88ff,
@@ -361,24 +434,6 @@ const materials = {
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 function placeBlock(type, pos, save=true) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
-    
-    if (type === 'eraser') {
-        if (placed.has(posKey)) {
-            const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z);
-            if (m) {
-                scene.remove(m);
-                meshList = meshList.filter(b => b !== m);
-                solidBlocks = solidBlocks.filter(b => b !== m);
-                customDeathBlocks = customDeathBlocks.filter(b => b !== m);
-                if (customGoal === m) customGoal = null;
-                if (customStart === m) customStart = null;
-                placed.delete(posKey);
-                currentCourseData = currentCourseData.filter(d => !(d.x === pos.x && d.y === pos.y && d.z === pos.z));
-            }
-        }
-        return;
-    }
-
     if (placed.has(posKey)) return;
     if (type==='goal' && customGoal){ scene.remove(customGoal); customGoal=null; }
     if (type==='start' && customStart){ scene.remove(customStart); customStart=null; }
@@ -396,15 +451,21 @@ function placeBlock(type, pos, save=true) {
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z});
 }
 
+// ★消しゴムのクリック判定を修正しました
 window.addEventListener('mousedown', e => {
     if (e.button!==0 || e.target!==renderer.domElement || currentMode!=='editor') return;
     mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects([floor, ...meshList]);
     if (intersects.length>0) {
-        const p = new THREE.Vector3().copy(intersects[0].point).add(intersects[0].face.normal.clone().multiplyScalar(0.5));
-        p.set(Math.round(p.x), Math.floor(p.y)+0.5, Math.round(p.z));
-        placeBlock(currentBlockType, p);
+        if (currentBlockType === 'eraser') {
+            const clickedMesh = intersects[0].object;
+            if (clickedMesh !== floor) removeBlockMesh(clickedMesh); // ブロックを直接削除
+        } else {
+            const p = new THREE.Vector3().copy(intersects[0].point).add(intersects[0].face.normal.clone().multiplyScalar(0.5));
+            p.set(Math.round(p.x), Math.floor(p.y)+0.5, Math.round(p.z));
+            placeBlock(currentBlockType, p);
+        }
     }
 });
 
@@ -446,7 +507,7 @@ function updatePhysics() {
     if(onType==='jump') { velocityY=0.4; isGrounded=false; }
     else if(keys.space && isGrounded) { velocityY=0.22; keys.space=false; }
     
-    if (player.position.y < -10 || isNaN(player.position.y)) { 
+    if (player.position.y < -10 || isNaN(player.position.x) || isNaN(player.position.y) || isNaN(player.position.z)) { 
         resetPlayerPosition(); 
     }
 }

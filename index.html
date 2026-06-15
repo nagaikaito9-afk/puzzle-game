@@ -26,7 +26,7 @@
 
         <div id="register-screen" class="screen hidden">
             <h1>アカウント作成</h1>
-            <p style="color:yellow; font-size:12px;">※いたずら防止のため、1つの端末につき1つまで作成可能です</p>
+            <p style="color:yellow; font-size:12px;">※いたずら防止のため、1つの端末につき5つまで作成可能です</p>
             <input type="text" id="reg-id" placeholder="新しいアカウント名">
             <input type="password" id="reg-pass" placeholder="新しいパスワード">
             <button onclick="register()">作成してログイン</button>
@@ -62,6 +62,7 @@
 
         <div id="course-list-screen" class="screen hidden">
             <h2 id="course-list-title">コース一覧</h2>
+            <input type="text" id="course-search" placeholder="コース名・作者名で検索" oninput="filterCourses()" style="width:80%; display:none; margin-bottom:10px;">
             <div id="course-list-container" class="list-container"></div>
             <br>
             <button onclick="goBackFromList()">戻る</button>
@@ -88,7 +89,7 @@
                 <option value="デザインが好き！">デザインが好き！</option>
                 <option value="また遊びたい！">また遊びたい！</option>
             </select>
-            <button onclick="postComment()">コメント送信</button>
+            <button onclick="postComment()" id="post-comment-btn">コメント送信</button>
             <br>
             <button onclick="showScreen('course-list-screen')">戻る</button>
         </div>
@@ -96,6 +97,8 @@
         <div id="settings-screen" class="screen hidden">
             <h2>設定</h2>
             <label><input type="checkbox" id="mobile-mode-check" onchange="toggleMobileMode()"> モバイル操作（スマホ用UI）をONにする</label>
+            <br><br>
+            <button onclick="deleteAccount()" style="background-color:#d9534f;">このアカウントを完全に削除する</button>
             <br><br>
             <button onclick="showScreen('home-screen')">戻る</button>
         </div>

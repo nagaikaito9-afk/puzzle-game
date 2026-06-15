@@ -58,7 +58,7 @@ window.addEventListener('contextmenu', e => e.preventDefault());
 
 // --- アカウント・UI制御 ---
 function togglePass(inputId) { const el = document.getElementById(inputId); el.type = el.type === "password" ? "text" : "password"; }
-function login() { /* 略記せず維持 */
+function login() {
     const id = document.getElementById('login-id').value; const pass = document.getElementById('login-pass').value;
     if (!id || !pass) return alert("入力してください");
     database.ref('users/' + id).once('value', snapshot => {
@@ -96,14 +96,29 @@ function showScreen(screenId) {
     document.getElementById('canvas-container').style.display = (screenId === 'editor-screen' || screenId === 'game-screen') ? 'block' : 'none'; currentMode = screenId.replace('-screen', '');
 }
 function goBackFromList() { showScreen(backScreenFromList); }
+
 function showCourseList(type, sortOrder, friendId = null) {
     showScreen('course-list-screen'); viewingCourseType = type; backScreenFromList = (type === 'friend') ? 'friends-screen' : 'play-select-screen';
     const c = document.getElementById('course-list-container'); const t = document.getElementById('course-list-title'); const s = document.getElementById('course-search');
     c.innerHTML = '読込中...'; s.style.display = type === 'world' ? 'block' : 'none'; s.value = '';
-    const render = (courses) => { currentLoadedCourses = courses.map((c, i) => ({ ...c, originalIndex: i })); filterCourses(); };
-    if (type === 'world') { t.innerText = sortOrder === 'popular' ? "世界のコース(人気順)" : "世界のコース(新着順)"; database.ref('worldCourses').once('value', snap => { let cs = []; snap.forEach(ch => cs.push({ key: child.key, ...ch.val() })); if (sortOrder === 'popular') cs.sort((a, b) => (b.likes || 0) - (a.likes || 0)); else cs.reverse(); render(cs); }); } 
+    const render = (courses) => { currentLoadedCourses = courses.map((co, i) => ({ ...co, originalIndex: i })); filterCourses(); };
+    
+    // ★修正: ch.key のタイポを完全に修正（これでずっと読み込み中になるバグが直ります）
+    if (type === 'world') { 
+        t.innerText = sortOrder === 'popular' ? "世界のコース(人気順)" : "世界のコース(新着順)"; 
+        database.ref('worldCourses').once('value', snap => { 
+            let cs = []; snap.forEach(ch => { cs.push({ key: ch.key, ...ch.val() }); }); 
+            if (sortOrder === 'popular') cs.sort((a, b) => (b.likes || 0) - (a.likes || 0)); else cs.reverse(); render(cs); 
+        }); 
+    } 
     else if (type === 'my') { t.innerText = "自分のコース"; render(myCourses); } 
-    else if (type === 'friend') { t.innerText = `${friendId} のコース`; database.ref('worldCourses').orderByChild('author').equalTo(friendId).once('value', snap => { let cs = []; snap.forEach(ch => cs.push({ key: ch.key, ...ch.val() })); cs.reverse(); render(cs); }); }
+    else if (type === 'friend') { 
+        t.innerText = `${friendId} のコース`; 
+        database.ref('worldCourses').orderByChild('author').equalTo(friendId).once('value', snap => { 
+            let cs = []; snap.forEach(ch => { cs.push({ key: ch.key, ...ch.val() }); }); 
+            cs.reverse(); render(cs); 
+        }); 
+    }
 }
 function filterCourses() {
     const q = document.getElementById('course-search').value.toLowerCase(); const c = document.getElementById('course-list-container'); c.innerHTML = '';
@@ -117,7 +132,7 @@ function showCourseDetail(course) {
     document.getElementById('detail-likes').innerText = course.likes || 0; document.getElementById('detail-plays').innerText = course.plays || 0;
     document.getElementById('detail-clear-rate').innerText = course.plays > 0 ? Math.floor(((course.clears||0)/course.plays)*100) : 0;
     const l = document.getElementById('like-btn'); l.innerText = "❤️ いいね！"; l.disabled = false;
-    if (viewingCourseKey) { database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', s => { if (snap.exists()) l.innerText = "💔 いいね解除"; }); } else l.style.display = 'none';
+    if (viewingCourseKey) { database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', s => { if (s.exists()) l.innerText = "💔 いいね解除"; }); } else l.style.display = 'none';
     document.getElementById('delete-course-btn').style.display = (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) ? 'inline-block' : 'none';
     const cS = document.getElementById('comment-section'); cS.innerHTML = ''; if (course.comments) Object.values(course.comments).forEach(c => cS.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`);
     showScreen('course-detail-screen');
@@ -136,7 +151,7 @@ function startPlayFromDetail() { if (viewingCourseKey) database.ref(`worldCourse
 function editCourseFromDetail() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.linkId); }); resetPlayerPosition(); camPanX = 0; camPanZ = 0; drawLinkLines(); }
 
 let currentCourseData = [];
-function startEditor() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; resetPlayerPosition(); camPanX = 0; camPanZ = 0; }
+function startEditor() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; resetPlayerPosition(); camPanX = 0; camPanZ = 0; selectBlock('normal'); }
 function testPlay() { showScreen('game-screen'); currentMode = 'test'; floor.visible = false; resetPlayerPosition(); }
 function loadAndPlayCourse(courseData, isTest = false) { showScreen('game-screen'); floor.visible = false; clearScene(); courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, b.linkId)); resetPlayerPosition(); }
 function quitPlay() { isFirstPerson = false; if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); drawLinkLines(); } else { showScreen('home-screen'); } }
@@ -150,7 +165,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(
 const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20, 10); scene.add(light); scene.add(new THREE.AmbientLight(0x606060));
 const player = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshLambertMaterial({ color: 0x0000ff })); scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshLambertMaterial({ color: 0x228B22 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
-let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); // リンク可視化用
+let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); 
 
 let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, prevY = 0, camPanX = 0, camPanZ = 0;
 
@@ -166,7 +181,6 @@ function updateCam() {
     }
 }
 
-// 右クリック判定用
 let rightClickStart = 0; let rightClickPos = {x:0, y:0};
 
 window.addEventListener('mousedown', e => { 
@@ -186,24 +200,24 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mouseup', e => { 
     isDragging=false; 
-    // 右クリックでリンク設定
     if (e.button === 2 && currentMode === 'editor') {
         let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y);
-        if (Date.now() - rightClickStart < 250 && dist < 5) {
-            handleRightClickLink(e.clientX, e.clientY);
-        }
+        if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY);
     }
 });
 
-// --- ★ 50種類のブロック定義とテクスチャ生成 ---
+// --- ★ ブロック定義とテクスチャ（修正済み） ---
+const textureCache = {};
 function getCanvasTexture(type) {
+    if (textureCache[type]) return textureCache[type];
     let c = document.createElement('canvas'); c.width = 64; c.height = 64; let ctx = c.getContext('2d');
     if (type === 'fake') {
         ctx.fillStyle='#111'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#555'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(10,10); ctx.lineTo(54,54); ctx.moveTo(54,10); ctx.lineTo(10,54); ctx.stroke();
     } else if (type === 'door') {
         ctx.fillStyle='#8B4513'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(32, 24, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(26,44); ctx.lineTo(38,44); ctx.lineTo(34,24); ctx.lineTo(30,24); ctx.fill();
     } else if (type === 'warp' || type === 'locked_warp') {
-        ctx.fillStyle = type==='warp' ? '#440088' : '#880000'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.beginPath(); for(let i=0;i<20;i++){ ctx.arc(32,32, i*1.5, 0, Math.PI*2); } ctx.stroke();
+        ctx.fillStyle = type==='warp' ? '#440088' : '#880000'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.beginPath(); 
+        for(let i=1; i<20; i++){ ctx.arc(32,32, i*1.5, 0, Math.PI*2); } ctx.stroke(); // ★バグ修正：半径0を回避
     } else if (type === 'ice') {
         ctx.fillStyle='#add8e6'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(32,10); ctx.lineTo(32,54); ctx.moveTo(10,32); ctx.lineTo(54,32); ctx.moveTo(16,16); ctx.lineTo(48,48); ctx.moveTo(48,16); ctx.lineTo(16,48); ctx.stroke();
     } else if (type.startsWith('conv_')) {
@@ -215,14 +229,15 @@ function getCanvasTexture(type) {
     } else if (type === 'metal') {
         ctx.fillStyle='#aaa'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#ddd'; ctx.lineWidth=4; ctx.strokeRect(4,4,56,56); ctx.fillStyle='#555'; ctx.beginPath(); ctx.arc(8,8,3,0,7); ctx.arc(56,8,3,0,7); ctx.arc(8,56,3,0,7); ctx.arc(56,56,3,0,7); ctx.fill();
     } else { ctx.fillStyle='#888'; ctx.fillRect(0,0,64,64); }
-    return new THREE.CanvasTexture(c);
+    textureCache[type] = new THREE.CanvasTexture(c);
+    return textureCache[type];
 }
 
 const BLOCKS = [
     {id:'normal', n:'通常ブロック', d:'普通の足場', c:0x888888}, {id:'fake', n:'すり抜け', d:'×印の罠', tx:'fake', pass:true},
     {id:'start', n:'スタート', d:'開始地点', type:'start'}, {id:'goal', n:'ゴール', d:'旗(クリア)', type:'goal'},
-    {id:'key', n:'カギ', d:'右クリックでドアとペア化', type:'key', pass:true}, {id:'door', n:'ドア', d:'カギで開く', tx:'door'},
-    {id:'warp', n:'ワープ', d:'右クリックでペア化', tx:'warp'}, {id:'locked_warp', n:'カギ付ワープ', d:'カギを持ってワープ', tx:'locked_warp'},
+    {id:'key', n:'カギ', d:'右クリックでペア化', type:'key', pass:true}, {id:'door', n:'ドア', d:'カギで開く', tx:'door'},
+    {id:'warp', n:'ワープ', d:'右クリックでペア化', tx:'warp'}, {id:'locked_warp', n:'カギ付ワープ', d:'カギが必要', tx:'locked_warp'},
     {id:'jump_s', n:'小ジャンプ', d:'少し跳ねる', c:0xadff2f}, {id:'jump_m', n:'中ジャンプ', d:'普通に跳ねる', c:0x32cd32}, {id:'jump_l', n:'大ジャンプ', d:'高く跳ねる', c:0x00ff00},
     {id:'speed_1', n:'ダッシュ', d:'少し速い', c:0x1e90ff}, {id:'speed_2', n:'超ダッシュ', d:'とても速い', c:0x0000ff}, {id:'slow', n:'泥', d:'足が遅くなる', c:0x8b4513},
     {id:'ice', n:'氷', d:'滑る', tx:'ice'}, {id:'sand', n:'砂', d:'少し沈む', tx:'sand'},
@@ -236,16 +251,32 @@ const BLOCKS = [
     {id:'d_red', n:'ダーク赤', d:'装飾', c:0x880000}, {id:'d_blue', n:'ダーク青', d:'装飾', c:0x000088}, {id:'d_green', n:'ダーク緑', d:'装飾', c:0x008800}, {id:'d_yellow', n:'ダーク黄', d:'装飾', c:0x888800},
     {id:'p_wood', n:'白木', d:'装飾', c:0xdeb887}, {id:'p_stone', n:'石畳', d:'装飾', c:0x708090}, {id:'p_gold', n:'金塊', d:'装飾', c:0xffd700}, {id:'p_dirt', n:'土', d:'装飾', c:0xa0522d},
     {id:'p_leaf', n:'葉っぱ', d:'装飾', c:0x228b22}, {id:'p_cloud', n:'雲', d:'装飾', c:0xf0f8ff}
-]; // 計50個
+];
 
+// ★修正: 選択中のボタンに色をつけて分かりやすくしました
 function initSidebar() {
-    const c = document.getElementById('block-list-container'); c.innerHTML = '';
+    const c = document.getElementById('block-list-container'); 
+    if(!c) return; // 念のためチェック
+    c.innerHTML = '';
     BLOCKS.forEach(b => {
-        c.innerHTML += `<button class="block-btn" onclick="selectBlock('${b.id}')"><span class="block-title">${b.n}</span><span class="block-desc">${b.d}</span></button>`;
+        c.innerHTML += `<button id="btn-${b.id}" class="block-btn" onclick="selectBlock('${b.id}')" style="width:100%; text-align:left; padding:8px; margin-bottom:5px; background-color:#333; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer;"><span style="font-weight:bold; font-size:15px; display:block;">${b.n}</span><span style="font-size:11px; color:#ccc;">${b.d}</span></button>`;
     });
+    // 消しゴムボタンの設定
+    const eb = document.createElement('button');
+    eb.id = "btn-eraser"; eb.innerText = "🧹 消しゴム";
+    eb.style.cssText = "width:100%; text-align:left; padding:10px; margin-bottom:15px; background-color:#d9534f; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer; font-weight:bold;";
+    eb.onclick = () => selectBlock('eraser');
+    c.prepend(eb);
 }
 initSidebar();
-function selectBlock(type) { currentBlockType = type; }
+
+function selectBlock(type) { 
+    currentBlockType = type; 
+    document.querySelectorAll('[id^="btn-"]').forEach(b => b.style.borderColor = 'transparent');
+    const btn = document.getElementById('btn-' + type);
+    if(btn) btn.style.borderColor = '#4CAF50';
+}
+setTimeout(() => selectBlock('normal'), 100);
 
 let solidBlocks=[], customDeathBlocks=[], customWarps=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
 let customKeys=[], customDoors=[], hasKeys=[]; 
@@ -274,7 +305,7 @@ function createMesh(bDef) {
         const body = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.6), new THREE.MeshLambertMaterial({color:0xffd700})); body.rotation.z = Math.PI/2; g.add(body);
         const head = new THREE.Mesh(new THREE.TorusGeometry(0.15,0.05,8,16), new THREE.MeshLambertMaterial({color:0xffd700})); head.position.x = -0.4; g.add(head);
         const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.05), new THREE.MeshLambertMaterial({color:0xffd700})); tooth.position.set(0.2, -0.15, 0); g.add(tooth);
-        g.position.y = 0.5; // 少し浮かせる
+        g.position.y = 0.5; 
         return g;
     }
     return new THREE.Mesh(new THREE.BoxGeometry(1,1,1), getBlockMaterial(bDef));
@@ -300,7 +331,6 @@ function placeBlock(type, pos, save=true, isLoad=false, loadUuid=null, loadLinkI
     const bDef = BLOCKS.find(b => b.id === type) || BLOCKS[0];
     const mesh = createMesh(bDef); mesh.position.copy(pos); 
     
-    // データ管理
     const uuid = loadUuid || Math.random().toString(36).substring(2);
     mesh.userData = { type: type, uuid: uuid, linkId: loadLinkId || null, opened: false, collected: false, bDef: bDef };
     scene.add(mesh); meshList.push(mesh); placed.add(posKey);
@@ -323,7 +353,6 @@ function handleRightClickLink(cx, cy) {
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObjects(meshList, true);
     if (intersects.length > 0) {
-        // Group内のMeshをクリックした場合、親(Group)を取得
         let m = intersects[0].object; while(m.parent && m.parent.type==='Group') m=m.parent;
         const t = m.userData.type;
         if (['key','door','warp','locked_warp'].includes(t)) {
@@ -332,15 +361,10 @@ function handleRightClickLink(cx, cy) {
                 alert("【ペア元を選択しました】\nもう一度、対応させたいブロックを右クリックしてください。");
             } else {
                 if (linkSourceMesh === m) { linkSourceMesh=null; return alert("キャンセルしました"); }
-                // リンク設定
-                linkSourceMesh.userData.linkId = m.userData.uuid;
-                m.userData.linkId = linkSourceMesh.userData.uuid;
-                // currentCourseDataの更新
+                linkSourceMesh.userData.linkId = m.userData.uuid; m.userData.linkId = linkSourceMesh.userData.uuid;
                 let d1 = currentCourseData.find(d => d.uuid === linkSourceMesh.userData.uuid); if(d1) d1.linkId = m.userData.uuid;
                 let d2 = currentCourseData.find(d => d.uuid === m.userData.uuid); if(d2) d2.linkId = linkSourceMesh.userData.uuid;
-                alert("🔗 ペアを構築しました！");
-                linkSourceMesh = null;
-                drawLinkLines();
+                alert("🔗 ペアを構築しました！"); linkSourceMesh = null; drawLinkLines();
             }
         }
     } else { linkSourceMesh = null; }
@@ -363,7 +387,7 @@ function drawLinkLines() {
     });
 }
 
-
+// ★修正: クリック時に確実にブロックが置けるように調整
 window.addEventListener('mousedown', e => {
     if (e.button!==0 || e.target!==renderer.domElement || currentMode!=='editor') return;
     mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1); raycaster.setFromCamera(mouse, camera);
@@ -373,6 +397,7 @@ window.addEventListener('mousedown', e => {
         if (currentBlockType === 'eraser') {
             if (hit !== floor) { removeBlockMesh(hit); playSE('place'); }
         } else {
+            // GroupのMeshがクリックされた場合でも正常に座標を取得する
             const p = new THREE.Vector3().copy(intersects[0].point).add(intersects[0].face.normal.clone().multiplyScalar(0.5));
             p.set(Math.round(p.x), Math.floor(p.y)+0.5, Math.round(p.z));
             placeBlock(currentBlockType, p);
@@ -422,7 +447,7 @@ function updatePhysics() {
         if(t==='speed_1') moveSpd=0.2; if(t==='speed_2') moveSpd=0.35; if(t==='slow'||t==='sand') moveSpd=0.03;
         if(t.startsWith('conv_')) {
             if(t==='conv_n') player.position.z-=0.05; if(t==='conv_s') player.position.z+=0.05; if(t==='conv_e') player.position.x+=0.05; if(t==='conv_w') player.position.x-=0.05;
-            if(checkWall()) { player.position.x=Math.round(player.position.x); player.position.z=Math.round(player.position.z); } // 壁にめり込まない
+            if(checkWall()) { player.position.x=Math.round(player.position.x); player.position.z=Math.round(player.position.z); } 
         }
         if(t==='jump_s') { velocityY=0.25; isGrounded=false; playSE('jump'); }
         if(t==='jump_m') { velocityY=0.4; isGrounded=false; playSE('jump'); }
@@ -432,13 +457,12 @@ function updatePhysics() {
     if(keys.space && isGrounded) { velocityY=0.22; keys.space=false; playSE('jump'); }
     if (player.position.y < -10 || isNaN(player.position.y)) { playSE('death'); resetPlayerPosition(); }
 
-    // ワープ処理
     if (warpCooldown > 0) warpCooldown--;
     if (warpCooldown <= 0) {
         for (let w of customWarps) {
             let t = w.userData.type;
             if (Math.abs(player.position.x-w.position.x)<0.8 && Math.abs(player.position.z-w.position.z)<0.8 && Math.abs(player.position.y-w.position.y)<1.0) {
-                if (t === 'locked_warp' && !hasKeys.includes(w.userData.linkId)) continue; // カギがないとワープ不可
+                if (t === 'locked_warp' && !hasKeys.includes(w.userData.linkId)) continue; 
                 if (w.userData.linkId) {
                     let target = customWarps.find(tw => tw.userData.uuid === w.userData.linkId);
                     if (target) {
@@ -456,7 +480,7 @@ function animate() {
     requestAnimationFrame(animate);
     if (currentMode==='game' || currentMode==='test') {
         let ix=0, iz=0; if(keys.up||keys.w) iz-=1; if(keys.down||keys.s) iz+=1; if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1;
-        let speed = updatePhysics(); // 物理更新＆速度取得
+        let speed = updatePhysics(); 
         if(ix!==0 || iz!==0) {
             let l=Math.sqrt(ix*ix+iz*iz); ix/=l; iz/=l;
             let dx=(ix*Math.cos(camTheta)+iz*Math.sin(camTheta))*speed, dz=(-ix*Math.sin(camTheta)+iz*Math.cos(camTheta))*speed;

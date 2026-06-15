@@ -141,7 +141,7 @@ function showCourseList(type, sortOrder, friendId = null) {
         });
     } else if (type === 'my') {
         title.innerText = "自分のコース(ローカル)";
-        renderList(myCourses); // ローカル保存から表示
+        renderList(myCourses); 
     } else if (type === 'friend') {
         title.innerText = `${friendId} のコース`;
         database.ref('worldCourses').orderByChild('author').equalTo(friendId).once('value', snapshot => {
@@ -163,7 +163,6 @@ function showCourseDetail(course) {
     let plays = course.plays || 0; let clears = course.clears || 0;
     document.getElementById('detail-clear-rate').innerText = plays > 0 ? Math.floor((clears/plays)*100) : 0;
 
-    // 削除ボタンの表示制御
     const delBtn = document.getElementById('delete-course-btn');
     if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) {
         delBtn.style.display = 'inline-block';
@@ -218,11 +217,13 @@ function startEditor() {
     showScreen('editor-screen');
     floor.visible = true;
     clearScene(); currentCourseData = []; resetPlayerPosition();
-    camPanX = 0; camPanZ = 0; // カメラ位置リセット
+    camPanX = 0; camPanZ = 0; 
 }
 
+// ★バグ修正：テストモード時に正しく「テスト中」と認識されるように直しました
 function testPlay() {
     showScreen('game-screen');
+    currentMode = 'test'; // ★画面を切り替えた後にモードを上書きする
     document.getElementById('mobile-controls').classList.toggle('hidden', !isMobileMode);
     floor.visible = false; resetPlayerPosition();
 }
@@ -284,7 +285,7 @@ scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshLambertMaterial({ color: 0x228B22 }));
 floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-// --- カメラ操作 (ドラッグ ＆ 平行移動) ---
+// --- カメラ操作 ---
 let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, prevY = 0;
 let camPanX = 0, camPanZ = 0;
 
@@ -350,7 +351,6 @@ window.addEventListener('touchend', () => isDragging=false);
 let solidBlocks=[], customDeathBlocks=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
 function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customGoal=null; customStart=null; placed.clear(); meshList=[]; }
 
-// ★修正: fake(すり抜けブロック)の色を黒色(0x111111)に変更しました！
 const materials = {
     'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6, 'fake': 0x111111,
     'color-red': 0xff5555, 'color-blue': 0x5555ff, 'color-green': 0x55ff55, 'color-pink': 0xff88ff,

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D パズルメーカー</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        
+        <div id="home-screen" class="screen">
+            <h1>3D Puzzle Maker</h1>
+            <button onclick="startEditor()">コースを作成</button>
+            <button onclick="showScreen('play-select-screen')">コースをプレイ</button>
+            <button onclick="showScreen('settings-screen')">設定</button>
+        </div>
+
+        <div id="play-select-screen" class="screen hidden">
+            <h2>プレイするコースを選ぶ</h2>
+            <button onclick="showCourseList('my')">自分のコースをプレイ</button>
+            <button onclick="showCourseList('world')">世界のコースをプレイ</button>
+            <br><br>
+            <button onclick="showScreen('home-screen')">戻る</button>
+        </div>
+
+        <div id="course-list-screen" class="screen hidden">
+            <h2 id="course-list-title">コース一覧</h2>
+            <div id="course-list-container" class="list-container"></div>
+            <br>
+            <button onclick="showScreen('play-select-screen')">戻る</button>
+        </div>
+
+        <div id="settings-screen" class="screen hidden">
+            <h2>設定</h2>
+            <label>BGM 音量: <span id="bgm-val">50</span>%
+                <input type="range" id="bgm-volume" min="0" max="100" value="50" oninput="updateVolume()">
+            </label>
+            <br><br>
+            <label>効果音 音量: <span id="se-val">50</span>%
+                <input type="range" id="se-volume" min="0" max="100" value="50" oninput="updateVolume()">
+            </label>
+            <br><br>
+            <button onclick="showScreen('home-screen')">戻る</button>
+        </div>
+
+        <div id="editor-screen" class="screen hidden">
+            <div class="hud">
+                <span>モード: エディタ</span>
+                <button onclick="testPlay()">完成（クリアチェック）</button>
+                <button onclick="showScreen('home-screen')">やめる</button>
+            </div>
+            <div class="toolbar">
+                <button onclick="selectBlock('normal')">通常(灰)</button>
+                <button onclick="selectBlock('wood')">木</button>
+                <button onclick="selectBlock('brick')">レンガ</button>
+                <button onclick="selectBlock('glass')">ガラス</button>
+                <button onclick="selectBlock('death')">即死(赤)</button>
+                <button onclick="selectBlock('goal')">ゴール</button>
+                <button onclick="selectBlock('start')">スタート</button>
+            </div>
+        </div>
+
+        <div id="game-screen" class="screen hidden">
+            <div class="hud">
+                <span>プレイ中 (WASDで移動 / Spaceでジャンプ)</span>
+                <button onclick="showScreen('home-screen')">やめる</button>
+            </div>
+            <div id="clear-message" class="hidden">
+                <h2>クリア！</h2>
+                <button id="publish-btn" onclick="publishCourse()" class="hidden">世界に公開する</button>
+                <button onclick="showScreen('home-screen')">ホームに戻る</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

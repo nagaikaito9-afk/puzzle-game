@@ -152,19 +152,8 @@ function likeCourse() {
 
 function postComment() { if (!viewingCourseKey) return; const t = document.getElementById('comment-select').value; database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: t }); document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${t}</div>`; document.getElementById('post-comment-btn').innerText = "送信完了！"; setTimeout(() => { document.getElementById('post-comment-btn').innerText = "コメント送信"; }, 1500); }
 function startPlayFromDetail() { if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/plays`).transaction(p => (p || 0) + 1); loadAndPlayCourse(viewingCourseData, false); }
+function editCourseFromDetail() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; viewingCourseData.forEach(b => { let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null); let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null); placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, wId, lId); }); resetPlayerPosition(); camPanX = 0; camPanZ = 0; drawLinkLines(); }
 
-// ★修正: 旧データとの互換性を持たせてロード
-function editCourseFromDetail() { 
-    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
-    viewingCourseData.forEach(b => { 
-        let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null);
-        let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null);
-        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, wId, lId); 
-    }); 
-    resetPlayerPosition(); camPanX = 0; camPanZ = 0; drawLinkLines(); 
-}
-
-// --- 自動スタート設置・エディタ開始 ---
 let currentCourseData = [];
 function startEditor() { 
     showScreen('editor-screen'); floor.visible = true; 
@@ -176,18 +165,14 @@ function startEditor() {
 function testPlay() { showScreen('game-screen'); currentMode = 'test'; floor.visible = false; resetPlayerPosition(); }
 function loadAndPlayCourse(courseData, isTest = false) { 
     showScreen('game-screen'); floor.visible = false; clearScene(); 
-    courseData.forEach(b => {
-        let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null);
-        let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null);
-        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, wId, lId);
-    });
+    courseData.forEach(b => { let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null); let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null); placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, wId, lId); });
     resetPlayerPosition(); 
 }
 function quitPlay() { isFirstPerson = false; if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); drawLinkLines(); } else { showScreen('home-screen'); } }
 function saveLocalCourse() { const name = prompt("コース名を入力", "マイコース"); if (name) { myCourses.push({ name: name, data: JSON.parse(JSON.stringify(currentCourseData)) }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); alert("保存しました！"); quitPlay(); } }
 function publishCourse() { if (!currentUser) return alert("ログインが必要です"); const name = prompt("公開するコース名", "マイコース"); if (name) { const d = JSON.parse(JSON.stringify(currentCourseData)); myCourses.push({ name: name, data: d }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); database.ref('worldCourses').push({ name: name, author: currentUser, data: d, likes: 0, plays: 0, clears: 0 }).then(() => { alert("世界に公開しました！"); quitPlay(); }).catch(err => { alert("エラー: " + err.message); quitPlay(); }); } }
 
-// --- Three.js ---
+// --- Three.js 準備 ---
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x87CEEB); 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.getElementById('canvas-container').appendChild(renderer.domElement);
@@ -195,10 +180,11 @@ const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20
 const player = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshLambertMaterial({ color: 0x0000ff })); scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshLambertMaterial({ color: 0x228B22 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
+// ★これがないとエラーになる「マウス・レイキャスター」の宣言を一番外側に設置！
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); 
 
+let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); 
 let camTheta = 0, camPhi = 1.0, camRadius = 12, camPanX = 0, camPanZ = 0;
 
 function updateCam() {
@@ -258,8 +244,18 @@ const BLOCKS = [
     {id:'p_leaf', n:'葉っぱ', d:'装飾', c:0x228b22}, {id:'p_cloud', n:'雲', d:'装飾', c:0xf0f8ff}
 ];
 
+// ★消しゴムボタンを確実に復活！
 function initSidebar() {
     const c = document.getElementById('block-list-container'); if(!c) return; c.innerHTML = '';
+    
+    // 消しゴムボタン
+    const eb = document.createElement('button');
+    eb.id = "btn-eraser"; eb.className = "block-btn";
+    eb.onclick = () => selectBlock('eraser');
+    eb.style.cssText = "width:100%; text-align:left; padding:8px; margin-bottom:15px; background-color:#d9534f; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer;";
+    eb.innerHTML = `<span style="font-weight:bold; font-size:15px; display:block;">🧹 消しゴム</span><span style="font-size:11px; color:#ccc;">クリックで削除</span>`;
+    c.appendChild(eb);
+
     BLOCKS.forEach(b => {
         c.innerHTML += `<button id="btn-${b.id}" class="block-btn" onclick="selectBlock('${b.id}')" style="width:100%; text-align:left; padding:8px; margin-bottom:5px; background-color:#333; color:white; border:2px solid transparent; border-radius:5px; cursor:pointer;"><span style="font-weight:bold; font-size:15px; display:block;">${b.n}</span><span style="font-size:11px; color:#ccc;">${b.d}</span></button>`;
     });
@@ -306,12 +302,17 @@ function createMesh(bDef) {
     return new THREE.Mesh(new THREE.BoxGeometry(1,1,1), getBlockMaterial(bDef));
 }
 
-// ★修正: warpTargetId と lockId の分離に対応
+function removeBlockMesh(m) {
+    scene.remove(m); meshList = meshList.filter(b => b !== m); solidBlocks = solidBlocks.filter(b => b !== m); customDeathBlocks = customDeathBlocks.filter(b => b !== m);
+    customWarps = customWarps.filter(b => b !== m); customKeys = customKeys.filter(b => b !== m); customDoors = customDoors.filter(b => b !== m);
+    if (customGoal === m) customGoal = null; if (customStart === m) customStart = null;
+    placed.delete(`${m.position.x},${m.position.y},${m.position.z}`);
+    currentCourseData = currentCourseData.filter(d => d.uuid !== m.userData.uuid);
+    drawLinkLines();
+}
+
 function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWarpTargetId=null, loadLockId=null) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
-    if (type === 'eraser') {
-        if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) { removeBlockMesh(m); playSE('place'); } } return;
-    }
     if (placed.has(posKey)) return;
     if (['goal','start'].includes(type)) { let ex = type==='goal'?customGoal:customStart; if(ex) removeBlockMesh(ex); }
 
@@ -333,7 +334,6 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z, uuid:uuid, warpTargetId:mesh.userData.warpTargetId, lockId:mesh.userData.lockId});
 }
 
-// ★修正: 「複数ペア問題」の解決 ＆ 「右クリックでペア解除」機能の実装
 let linkSourceMesh = null;
 function handleRightClickLink(cx, cy) {
     mouse.set((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1);
@@ -341,70 +341,32 @@ function handleRightClickLink(cx, cy) {
     const intersects = raycaster.intersectObjects(meshList, true);
     if (intersects.length > 0) {
         let m = intersects[0].object; while(m.parent && m.parent.type==='Group') m=m.parent;
-        const t = m.userData.type;
+        const t = m.userData.type; const bDef = BLOCKS.find(b => b.id === t) || {}; const bt = bDef.type || t; 
         
-        if (!linkSourceMesh) {
-            // ペア解除機能
-            if (m.userData.warpTargetId || m.userData.lockId) {
-                if (confirm("🔗 このブロックに設定されているペアを解除しますか？")) {
-                    if (m.userData.warpTargetId) {
-                        let target = meshList.find(b => b.userData.uuid === m.userData.warpTargetId);
-                        if (target) target.userData.warpTargetId = null;
-                        m.userData.warpTargetId = null;
+        if (['key','door','warp','locked_warp'].includes(t) || ['key','door','warp','locked_warp'].includes(bt)) {
+            if (!linkSourceMesh) {
+                if (m.userData.warpTargetId || m.userData.lockId) {
+                    if (confirm("🔗 このブロックに設定されているペアを解除しますか？")) {
+                        if (m.userData.warpTargetId) { let target = meshList.find(b => b.userData.uuid === m.userData.warpTargetId); if (target) target.userData.warpTargetId = null; m.userData.warpTargetId = null; }
+                        if (m.userData.lockId) { let target = meshList.find(b => b.userData.uuid === m.userData.lockId); if (target) target.userData.lockId = null; m.userData.lockId = null; }
+                        updateCourseDataLinks(); drawLinkLines(); return alert("💔 ペアを解除しました！");
                     }
-                    if (m.userData.lockId) {
-                        let target = meshList.find(b => b.userData.uuid === m.userData.lockId);
-                        if (target) target.userData.lockId = null;
-                        m.userData.lockId = null;
-                    }
-                    updateCourseDataLinks(); drawLinkLines();
-                    return alert("💔 ペアを解除しました！");
                 }
-            }
-            
-            if (['key','door','warp','locked_warp'].includes(t)) {
-                linkSourceMesh = m;
-                alert("【ペア元を選択しました】\nもう一度、対応させたいブロックを右クリックしてください。");
-            }
-        } else {
-            if (linkSourceMesh === m) { linkSourceMesh=null; return alert("キャンセルしました"); }
-            
-            const t1 = linkSourceMesh.userData.type;
-            const t2 = m.userData.type;
-            let success = false;
-            
-            // ワープ同士を繋ぐ場合 (Warpライン)
-            if (['warp', 'locked_warp'].includes(t1) && ['warp', 'locked_warp'].includes(t2)) {
-                linkSourceMesh.userData.warpTargetId = m.userData.uuid;
-                m.userData.warpTargetId = linkSourceMesh.userData.uuid;
-                success = true;
-            }
-            // カギとドア、またはカギと鍵付きワープを繋ぐ場合 (Lockライン)
-            else if ((t1 === 'key' && ['door', 'locked_warp'].includes(t2)) || (t2 === 'key' && ['door', 'locked_warp'].includes(t1))) {
-                linkSourceMesh.userData.lockId = m.userData.uuid;
-                m.userData.lockId = linkSourceMesh.userData.uuid;
-                success = true;
-            }
-            
-            if (success) {
-                updateCourseDataLinks();
-                alert("🔗 ペアを構築しました！"); linkSourceMesh = null; drawLinkLines();
+                linkSourceMesh = m; alert("【ペア元を選択しました】\nもう一度、対応させたいブロックを右クリックしてください。");
             } else {
-                alert("⚠️ その組み合わせではペアを組めません。\n(ワープ同士、またはカギとドア/鍵付きワープのみ可能です)");
-                linkSourceMesh = null;
+                if (linkSourceMesh === m) { linkSourceMesh=null; return alert("キャンセルしました"); }
+                const t1 = linkSourceMesh.userData.type; const t2 = m.userData.type; let success = false;
+                if (['warp', 'locked_warp'].includes(t1) && ['warp', 'locked_warp'].includes(t2)) { linkSourceMesh.userData.warpTargetId = m.userData.uuid; m.userData.warpTargetId = linkSourceMesh.userData.uuid; success = true; }
+                else if ((t1 === 'key' && ['door', 'locked_warp'].includes(t2)) || (t2 === 'key' && ['door', 'locked_warp'].includes(t1))) { linkSourceMesh.userData.lockId = m.userData.uuid; m.userData.lockId = linkSourceMesh.userData.uuid; success = true; }
+                if (success) { updateCourseDataLinks(); alert("🔗 ペアを構築しました！"); linkSourceMesh = null; drawLinkLines(); } 
+                else { alert("⚠️ その組み合わせではペアを組めません。\n(ワープ同士、またはカギとドア/鍵付きワープのみ可能です)"); linkSourceMesh = null; }
             }
         }
     } else { linkSourceMesh = null; }
 }
 
-function updateCourseDataLinks() {
-    meshList.forEach(m => {
-        let d = currentCourseData.find(cd => cd.uuid === m.userData.uuid);
-        if (d) { d.warpTargetId = m.userData.warpTargetId; d.lockId = m.userData.lockId; }
-    });
-}
+function updateCourseDataLinks() { meshList.forEach(m => { let d = currentCourseData.find(cd => cd.uuid === m.userData.uuid); if (d) { d.warpTargetId = m.userData.warpTargetId; d.lockId = m.userData.lockId; } }); }
 
-// ★修正: 分離したペアの線を色分けして表示（赤：ワープ、オレンジ：カギ）
 function drawLinkLines() {
     linkLinesGroup.clear();
     if (currentMode !== 'editor') return;
@@ -429,16 +391,31 @@ function drawLinkLines() {
     });
 }
 
-// マウスイベント
+// --- ★修正：マウスイベントを完全に1つだけに統合＆最強計算式 ---
+let isDragging = false, prevX = 0, prevY = 0;
+let rightClickStart = 0, rightClickPos = {x:0, y:0};
+
 window.addEventListener('mousedown', e => { 
-    if (e.button === 2) { isDragging = true; prevX = e.clientX; prevY = e.clientY; rightClickStart = Date.now(); rightClickPos = {x: e.clientX, y: e.clientY}; return; }
-    if (e.button === 0 && e.target.tagName === 'CANVAS' && currentMode === 'editor') {
-        mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1); raycaster.setFromCamera(mouse, camera);
+    if (e.target.tagName !== 'CANVAS') return; // UIのクリックは無視
+
+    if (e.button === 2) { 
+        isDragging = true; prevX = e.clientX; prevY = e.clientY; 
+        rightClickStart = Date.now(); rightClickPos = {x: e.clientX, y: e.clientY}; 
+        return; 
+    }
+    
+    if (e.button === 0 && currentMode === 'editor') {
+        mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1);
+        raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects([floor, ...meshList], true);
+        
         if (intersects.length > 0) {
-            let hit = intersects[0].object; while(hit.parent && hit.parent.type === 'Group') hit = hit.parent; 
-            if (currentBlockType === 'eraser') { if (hit !== floor) { removeBlockMesh(hit); playSE('place'); } } 
-            else {
+            let hit = intersects[0].object; 
+            while(hit.parent && hit.parent.type === 'Group') hit = hit.parent; 
+            
+            if (currentBlockType === 'eraser') {
+                if (hit !== floor) { removeBlockMesh(hit); playSE('place'); }
+            } else {
                 let n = new THREE.Vector3(0, 1, 0);
                 if (intersects[0].face) {
                     n.copy(intersects[0].face.normal);
@@ -448,8 +425,16 @@ window.addEventListener('mousedown', e => {
                     else if (Math.abs(n.y) > Math.abs(n.x) && Math.abs(n.y) > Math.abs(n.z)) { n.set(0, Math.sign(n.y), 0); }
                     else { n.set(0, 0, Math.sign(n.z)); }
                 }
-                const p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.1));
-                p.x = Math.round(p.x) + 0; p.y = Math.floor(p.y) + 0.5; p.z = Math.round(p.z) + 0;
+
+                let p;
+                if (hit === floor) {
+                    p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.5));
+                    p.x = Math.round(p.x); p.y = 0.5; p.z = Math.round(p.z);
+                } else {
+                    p = new THREE.Vector3().copy(hit.position).add(n);
+                    p.x = Math.round(p.x); p.y = Math.round(p.y - 0.5) + 0.5; p.z = Math.round(p.z);
+                }
+                
                 placeBlock(currentBlockType, p);
             }
         }
@@ -460,7 +445,8 @@ window.addEventListener('mousemove', e => {
     if (isDragging) {
         if (e.shiftKey && currentMode === 'editor') {
             let dx = (e.clientX - prevX) * 0.05; let dy = (e.clientY - prevY) * 0.05;
-            camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta);
+            camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); 
+            camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta);
         } else {
             camTheta -= (e.clientX - prevX)*0.01; camPhi -= (e.clientY - prevY)*0.01;
             if (camPhi < 0.1) camPhi = 0.1; if (camPhi > Math.PI/2.1) camPhi = Math.PI/2.1;
@@ -468,9 +454,16 @@ window.addEventListener('mousemove', e => {
         prevX = e.clientX; prevY = e.clientY;
     }
 });
-window.addEventListener('mouseup', e => { isDragging = false; if (e.button === 2 && currentMode === 'editor') { let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y); if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY); } });
 
-// 操作
+window.addEventListener('mouseup', e => { 
+    isDragging = false; 
+    if (e.button === 2 && currentMode === 'editor') {
+        let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y);
+        if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY);
+    }
+});
+
+// --- 操作と物理 ---
 const keys = { w:false, s:false, a:false, d:false, space:false };
 window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=true; if(e.code==='Space') keys.space=true; if(k==='v') isFirstPerson = !isFirstPerson; });
 window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=false; if(e.code==='Space') keys.space=false; });
@@ -482,12 +475,11 @@ function resetPlayerPosition() {
     customKeys.forEach(k => { k.visible = true; k.userData.collected = false; }); customDoors.forEach(d => { d.visible = true; d.userData.opened = false; });
 }
 
-// ★修正: ドアが開かないバグを完全解消 (userData.type を直接参照)
 function checkWall() {
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
         if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - b.position.y > -0.5 && player.position.y - b.position.y < 0.8) {
-            let t = b.userData.type;
+            let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
             if (t === 'door') {
                 let lId = b.userData.lockId || b.userData.linkId;
                 if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) {
@@ -499,7 +491,6 @@ function checkWall() {
     } return false;
 }
 
-// ★修正: 鍵付きワープの「カギ所持チェック」と「ワープ先判定」を分離して修正
 function updatePhysics() {
     velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null;
     if (floor.visible && player.position.y<=0.4) { player.position.y=0.4; velocityY=0; isGrounded=true; }
@@ -546,7 +537,6 @@ function updatePhysics() {
     return moveSpd;
 }
 
-// ★修正: クリア直後に死ぬバグの対策 (!isCleared)
 function animate() {
     requestAnimationFrame(animate);
     const isCleared = !document.getElementById('clear-message').classList.contains('hidden');

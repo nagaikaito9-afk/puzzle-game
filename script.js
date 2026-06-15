@@ -364,6 +364,23 @@ function startPlayFromDetail() {
     loadAndPlayCourse(viewingCourseData, false);
 }
 
+// ★追加：コースをエディタで読み込んで編集する機能
+function editCourseFromDetail() {
+    showScreen('editor-screen');
+    floor.visible = true;
+    clearScene();
+    currentCourseData = [];
+    
+    // データを読み込んでブロックを配置（音は鳴らさない）
+    viewingCourseData.forEach(b => {
+        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false);
+    });
+    
+    resetPlayerPosition();
+    camPanX = 0; camPanZ = 0; 
+}
+
+
 // --- エディタとゲーム処理 ---
 let currentCourseData = [];
 
@@ -381,7 +398,7 @@ function testPlay() {
 function loadAndPlayCourse(courseData, isTest = false) {
     showScreen('game-screen');
     floor.visible = false; clearScene();
-    courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false));
+    courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false));
     resetPlayerPosition();
 }
 
@@ -393,33 +410,36 @@ function quitPlay() {
     }
 }
 
-// ★修正: ローカル保存後、ホーム画面に直接戻るようにしました
+// ★修正：保存と公開の処理を大幅に改善
 function saveLocalCourse() {
     const name = prompt("コース名を入力", "マイコース");
     if (name) {
         myCourses.push({ name: name, data: currentCourseData });
         localStorage.setItem('myCourses', JSON.stringify(myCourses));
         alert("保存しました！「自分のコース」から遊べます。");
-        showScreen('home-screen'); // 直接ホーム画面へ
+        quitPlay();
     }
 }
 
-// ★修正: 公開後、ホーム画面に直接戻るようにし、エラー時はアラートを出すようにしました
 function publishCourse() {
-    if (!currentUser) {
-        alert("公開するにはログインが必要です。");
-        return;
-    }
+    if (!currentUser) return alert("公開するにはログインが必要です。");
+
     const name = prompt("公開するコース名を入力", "マイコース");
     if (name) {
+        // ★修正点1：公開と同時に、必ず自分のローカルデータにも保存する
+        myCourses.push({ name: name, data: currentCourseData });
+        localStorage.setItem('myCourses', JSON.stringify(myCourses));
+
+        // ★修正点2：エラーが起きた時に原因を表示するように改善
         database.ref('worldCourses').push({
             name: name, author: currentUser, data: currentCourseData,
             likes: 0, plays: 0, clears: 0
         }).then(() => { 
-            alert("世界に公開しました！");
-            showScreen('home-screen'); // 直接ホーム画面へ
+            alert("ローカルに保存し、世界に公開しました！"); 
+            quitPlay(); 
         }).catch(error => {
-            alert("公開に失敗しました。Firebaseのルール設定などを確認してください。\nエラー: " + error.message);
+            alert("⚠️公開に失敗しましたが、自分のコース（ローカル）には保存されました。\n(エラー原因: " + error.message + ")");
+            quitPlay();
         });
     }
 }
@@ -491,7 +511,8 @@ const materials = {
 };
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
-function placeBlock(type, pos, save=true) {
+// ★修正：自動ロード時にSEが鳴らないように引数 playSound を追加
+function placeBlock(type, pos, save=true, playSound=true) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
     if (type === 'eraser') {
         if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) removeBlockMesh(m); }
@@ -505,7 +526,8 @@ function placeBlock(type, pos, save=true) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color: materials[type], transparent: type==='glass', opacity: 0.6}));
     mesh.position.copy(pos); mesh.userData = {type: type, opened: false}; scene.add(mesh); meshList.push(mesh);
     placed.add(posKey);
-    playSE('place');
+    
+    if (playSound) playSE('place');
     
     if (isSolid) solidBlocks.push(mesh);
     if(type==='death') customDeathBlocks.push(mesh); else if(type==='goal') customGoal=mesh; else if(type==='start') customStart=mesh;

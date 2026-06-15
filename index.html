@@ -19,11 +19,7 @@
             <h2>ログイン</h2>
             <input type="text" id="login-id" placeholder="アカウント名">
             <input type="password" id="login-pass" placeholder="パスワード">
-            <div>
-                <label style="font-size: 14px; cursor: pointer;">
-                    <input type="checkbox" onchange="togglePass('login-pass')"> パスワードを表示
-                </label>
-            </div>
+            <div><label style="font-size: 14px; cursor: pointer;"><input type="checkbox" onchange="togglePass('login-pass')"> パスワードを表示</label></div>
             <button onclick="login()">ログイン</button>
             <br><br>
             <button onclick="showScreen('register-screen')">新しいアカウントを作成</button>
@@ -34,11 +30,7 @@
             <p style="color:yellow; font-size:12px;">※いたずら防止のため、1つの端末につき5つまで作成可能です</p>
             <input type="text" id="reg-id" placeholder="新しいアカウント名">
             <input type="password" id="reg-pass" placeholder="パスワード (6文字以上)">
-            <div>
-                <label style="font-size: 14px; cursor: pointer;">
-                    <input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示
-                </label>
-            </div>
+            <div><label style="font-size: 14px; cursor: pointer;"><input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示</label></div>
             <button onclick="register()">作成してログイン</button>
             <button onclick="showScreen('login-screen')">戻る</button>
         </div>
@@ -57,30 +49,24 @@
             <button onclick="showCourseList('world', 'new')">世界のコース (新着順)</button>
             <button onclick="showCourseList('world', 'popular')">世界のコース (人気順)</button>
             <button onclick="showCourseList('my', 'new')">自分のコース</button>
-            <br><br>
-            <button onclick="showScreen('home-screen')">戻る</button>
+            <br><br><button onclick="showScreen('home-screen')">戻る</button>
         </div>
 
         <div id="friends-screen" class="screen hidden">
             <h2>フレンド</h2>
             <button onclick="sendFriendRequest()">＋ アカウント名でリクエスト送信</button>
-            
             <h3 style="margin-bottom: 5px;">📥 リクエスト一覧</h3>
             <div id="friend-requests-container" class="list-container" style="max-height: 15vh; margin-bottom: 15px;"></div>
-
             <h3 style="margin-bottom: 5px;">🤝 フレンド一覧</h3>
             <div id="friends-list-container" class="list-container" style="max-height: 25vh;"></div>
-            
-            <br>
-            <button onclick="showScreen('home-screen')">戻る</button>
+            <br><button onclick="showScreen('home-screen')">戻る</button>
         </div>
 
         <div id="course-list-screen" class="screen hidden">
             <h2 id="course-list-title">コース一覧</h2>
             <input type="text" id="course-search" placeholder="コース名・作者名で検索" oninput="filterCourses()" style="width:80%; display:none; margin-bottom:10px;">
             <div id="course-list-container" class="list-container"></div>
-            <br>
-            <button onclick="goBackFromList()">戻る</button>
+            <br><button onclick="goBackFromList()">戻る</button>
         </div>
 
         <div id="course-detail-screen" class="screen hidden">
@@ -89,9 +75,8 @@
             <p>❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
             <button onclick="likeCourse()" id="like-btn">❤️ いいね！</button>
             <button onclick="startPlayFromDetail()">プレイ開始</button>
-            <button onclick="editCourseFromDetail()" style="background-color:#f0ad4e;">🛠 エディタで開く(編集)</button>
-            <br><br>
-            <button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none;">🗑 このコースを削除</button>
+            <button onclick="editCourseFromDetail()" style="background-color:#f0ad4e;">🛠 エディタで開く</button>
+            <br><br><button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none;">🗑 このコースを削除</button>
             <br><br>
             <div id="comment-section" class="list-container" style="height:150px;"></div>
             <select id="comment-select">
@@ -107,61 +92,36 @@
                 <option value="また遊びたい！">また遊びたい！</option>
             </select>
             <button onclick="postComment()" id="post-comment-btn">コメント送信</button>
-            <br>
-            <button onclick="showScreen('course-list-screen')">戻る</button>
+            <br><button onclick="showScreen('course-list-screen')">戻る</button>
         </div>
 
         <div id="settings-screen" class="screen hidden">
             <h2>設定</h2>
-            <label>BGM 音量: <span id="bgm-val">50</span>%
-                <input type="range" id="bgm-volume" min="0" max="100" value="50" oninput="updateVolume()">
-            </label>
-            <br><br>
-            <label>効果音 音量: <span id="se-val">50</span>%
-                <input type="range" id="se-volume" min="0" max="100" value="50" oninput="updateVolume()">
-            </label>
-            <br><br>
-            <button onclick="deleteAccount()" style="background-color:#d9534f;">このアカウントを完全に削除する</button>
-            <br><br>
+            <label>BGM 音量: <span id="bgm-val">50</span>% <input type="range" id="bgm-volume" min="0" max="100" value="50" oninput="updateVolume()"></label><br><br>
+            <label>効果音 音量: <span id="se-val">50</span>% <input type="range" id="se-volume" min="0" max="100" value="50" oninput="updateVolume()"></label><br><br>
+            <button onclick="deleteAccount()" style="background-color:#d9534f;">アカウントを完全に削除する</button><br><br>
             <button onclick="showScreen('home-screen')">戻る</button>
         </div>
 
         <div id="editor-screen" class="screen hidden">
             <div class="hud">
-                <span>モード: エディタ</span>
-                <span style="font-size:12px; margin-left:10px;">(Shift+右クリックでカメラ移動)</span>
-                <br>
+                <span>モード: エディタ</span><br>
+                <span style="font-size:12px; color:#ff0;">※カギ/ドア/ワープは「右クリック」でペア設定！</span><br>
                 <button onclick="testPlay()">完成（チェック）</button>
                 <button onclick="showScreen('home-screen')">ホームに戻る</button>
             </div>
-            <div class="toolbar">
-                <button onclick="selectBlock('normal')">通常</button>
-                <button onclick="selectBlock('color-red')">赤色</button>
-                <button onclick="selectBlock('color-blue')">青色</button>
-                <button onclick="selectBlock('color-green')">緑色</button>
-                <button onclick="selectBlock('color-pink')">桃色</button>
-                <button onclick="selectBlock('wood')">木材</button>
-                <button onclick="selectBlock('glass')">ガラス</button>
-                <button onclick="selectBlock('fake')">すり抜け</button>
-                <button onclick="selectBlock('jump')">ジャンプ</button>
-                <button onclick="selectBlock('conveyor')">コンベア</button>
-                <button onclick="selectBlock('speed')">ダッシュ</button>
-                <button onclick="selectBlock('slow')">泥</button>
-                <button onclick="selectBlock('key')">カギ</button>
-                <button onclick="selectBlock('door')">ドア</button>
-                <button onclick="selectBlock('death')">即死</button>
-                <button onclick="selectBlock('goal')">ゴール</button>
-                <button onclick="selectBlock('start')">スタート</button>
-                <button onclick="selectBlock('eraser')" style="background-color:#d9534f;">消しゴム</button>
+            
+            <div id="editor-sidebar" class="sidebar">
+                <button onclick="selectBlock('eraser')" style="background-color:#d9534f; margin-bottom:15px;">🧹 消しゴム</button>
+                <div id="block-list-container"></div>
             </div>
         </div>
 
         <div id="game-screen" class="screen hidden">
             <div class="hud" id="play-hud">
-                <span>プレイ中 <span style="font-size:12px;">(Vキーで一人称/三人称切替)</span></span>
+                <span>プレイ中 <span style="font-size:12px;">(V:一人称/三人称)</span></span>
                 <button onclick="quitPlay()">やめる</button>
             </div>
-
             <div id="clear-message" class="hidden">
                 <h2>クリア！</h2>
                 <button id="btn-save-local" onclick="saveLocalCourse()" class="hidden">保存する</button>

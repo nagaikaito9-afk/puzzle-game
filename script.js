@@ -19,7 +19,7 @@ let seVol = 0.5;
 let isBgmPlaying = false;
 let bgmInterval = null;
 let bgmStep = 0;
-const bgmNotes = [261.63, 329.63, 392.00, 329.63, 261.63, 392.00, 440.00, 392.00]; // ピコピコメロディ
+const bgmNotes = [261.63, 329.63, 392.00, 329.63, 261.63, 392.00, 440.00, 392.00];
 
 function updateVolume() {
     bgmVol = document.getElementById('bgm-volume').value / 100;
@@ -86,7 +86,6 @@ function playSE(type) {
     }
 }
 // -------------------------------------------------------------------
-
 
 let currentUser = null;
 let currentMode = 'login';
@@ -394,22 +393,34 @@ function quitPlay() {
     }
 }
 
+// ★修正: ローカル保存後、ホーム画面に直接戻るようにしました
 function saveLocalCourse() {
     const name = prompt("コース名を入力", "マイコース");
     if (name) {
         myCourses.push({ name: name, data: currentCourseData });
         localStorage.setItem('myCourses', JSON.stringify(myCourses));
-        quitPlay();
+        alert("保存しました！「自分のコース」から遊べます。");
+        showScreen('home-screen'); // 直接ホーム画面へ
     }
 }
 
+// ★修正: 公開後、ホーム画面に直接戻るようにし、エラー時はアラートを出すようにしました
 function publishCourse() {
+    if (!currentUser) {
+        alert("公開するにはログインが必要です。");
+        return;
+    }
     const name = prompt("公開するコース名を入力", "マイコース");
     if (name) {
         database.ref('worldCourses').push({
             name: name, author: currentUser, data: currentCourseData,
             likes: 0, plays: 0, clears: 0
-        }).then(() => { quitPlay(); });
+        }).then(() => { 
+            alert("世界に公開しました！");
+            showScreen('home-screen'); // 直接ホーム画面へ
+        }).catch(error => {
+            alert("公開に失敗しました。Firebaseのルール設定などを確認してください。\nエラー: " + error.message);
+        });
     }
 }
 

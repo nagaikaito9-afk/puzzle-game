@@ -73,6 +73,7 @@
             <p>❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
             <button onclick="likeCourse()" id="like-btn">❤️ いいね！</button>
             <button onclick="startPlayFromDetail()">プレイ開始</button>
+            <button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none;">🗑 このコースを削除</button>
             <br><br>
             <div id="comment-section" class="list-container" style="height:150px;"></div>
             <select id="comment-select">
@@ -102,29 +103,37 @@
         <div id="editor-screen" class="screen hidden">
             <div class="hud">
                 <span>モード: エディタ</span>
+                <span style="font-size:12px; margin-left:10px;">(Shift+右クリックでカメラ移動)</span>
+                <br>
                 <button onclick="testPlay()">完成（チェック）</button>
-                <button onclick="showScreen('home-screen')">やめる</button>
+                <button onclick="showScreen('home-screen')">ホームに戻る</button>
             </div>
             <div class="toolbar">
-                <button onclick="selectBlock('normal')">灰</button>
-                <button onclick="selectBlock('color-red')">赤</button>
-                <button onclick="selectBlock('color-blue')">青</button>
-                <button onclick="selectBlock('color-green')">緑</button>
-                <button onclick="selectBlock('color-pink')">桃</button>
-                <button onclick="selectBlock('wood')">木</button>
+                <button onclick="selectBlock('normal')">通常</button>
+                <button onclick="selectBlock('color-red')">赤色</button>
+                <button onclick="selectBlock('color-blue')">青色</button>
+                <button onclick="selectBlock('color-green')">緑色</button>
+                <button onclick="selectBlock('color-pink')">桃色</button>
+                <button onclick="selectBlock('wood')">木材</button>
                 <button onclick="selectBlock('glass')">ガラス</button>
+                <button onclick="selectBlock('fake')">すり抜け</button>
                 <button onclick="selectBlock('jump')">ジャンプ</button>
                 <button onclick="selectBlock('conveyor')">コンベア</button>
+                <button onclick="selectBlock('speed')">ダッシュ</button>
+                <button onclick="selectBlock('slow')">泥</button>
+                <button onclick="selectBlock('key')">カギ</button>
+                <button onclick="selectBlock('door')">ドア</button>
                 <button onclick="selectBlock('death')">即死</button>
                 <button onclick="selectBlock('goal')">ゴール</button>
                 <button onclick="selectBlock('start')">スタート</button>
+                <button onclick="selectBlock('eraser')" style="background-color:#d9534f;">消しゴム</button>
             </div>
         </div>
 
         <div id="game-screen" class="screen hidden">
             <div class="hud" id="play-hud">
                 <span>プレイ中</span>
-                <button onclick="showScreen('home-screen')">やめる</button>
+                <button onclick="quitPlay()">やめる</button>
             </div>
             
             <div id="mobile-controls" class="hidden">
@@ -141,8 +150,9 @@
 
             <div id="clear-message" class="hidden">
                 <h2>クリア！</h2>
-                <button id="publish-btn" onclick="publishCourse()" class="hidden">世界に公開する</button>
-                <button onclick="showScreen('home-screen')">ホームに戻る</button>
+                <button id="btn-save-local" onclick="saveLocalCourse()" class="hidden">保存する</button>
+                <button id="btn-publish" onclick="publishCourse()" class="hidden">世界に公開する</button>
+                <button id="btn-back-home" onclick="quitPlay()" class="hidden">戻る</button>
             </div>
         </div>
 

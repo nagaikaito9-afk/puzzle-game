@@ -92,9 +92,12 @@ function showFriendsScreen() {
     });
 }
 
-// --- コース一覧・ソート・詳細画面 ---
+// --- コース一覧・ソート・詳細・削除 ---
+let myCourses = JSON.parse(localStorage.getItem('myCourses')) || [];
 let viewingCourseKey = null;
 let viewingCourseData = null;
+let viewingCourseType = null; 
+let viewingCourseIndex = null;
 let backScreenFromList = 'play-select-screen';
 
 function showScreen(screenId) {
@@ -104,16 +107,12 @@ function showScreen(screenId) {
     currentMode = screenId.replace('-screen', '');
 }
 
-function toggleMobileMode() {
-    isMobileMode = document.getElementById('mobile-mode-check').checked;
-}
-
-function goBackFromList() {
-    showScreen(backScreenFromList);
-}
+function toggleMobileMode() { isMobileMode = document.getElementById('mobile-mode-check').checked; }
+function goBackFromList() { showScreen(backScreenFromList); }
 
 function showCourseList(type, sortOrder, friendId = null) {
     showScreen('course-list-screen');
+    viewingCourseType = type;
     backScreenFromList = (type === 'friend') ? 'friends-screen' : 'play-select-screen';
     
     const container = document.getElementById('course-list-container');
@@ -122,14 +121,11 @@ function showCourseList(type, sortOrder, friendId = null) {
 
     const renderList = (courses) => {
         container.innerHTML = '';
-        if (courses.length === 0) {
-            container.innerHTML = '<p style="text-align:center;">公開されているコースがありません</p>';
-            return;
-        }
-        courses.forEach(course => {
+        if (courses.length === 0) return container.innerHTML = '<p style="text-align:center;">コースがありません</p>';
+        courses.forEach((course, idx) => {
             const btn = document.createElement('button');
             btn.innerText = `${course.name} (❤️${course.likes || 0})`;
-            btn.onclick = () => showCourseDetail(course);
+            btn.onclick = () => { viewingCourseIndex = idx; showCourseDetail(course); };
             container.appendChild(btn);
         });
     };
@@ -138,50 +134,63 @@ function showCourseList(type, sortOrder, friendId = null) {
         title.innerText = sortOrder === 'popular' ? "世界のコース (人気順)" : "世界のコース (新着順)";
         database.ref('worldCourses').once('value', snapshot => {
             let courses = [];
-            snapshot.forEach(child => { courses.push({ key: child.key, ...child.val() }); });
+            snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
             if (sortOrder === 'popular') courses.sort((a, b) => (b.likes || 0) - (a.likes || 0));
             else courses.reverse(); 
             renderList(courses);
         });
     } else if (type === 'my') {
-        title.innerText = "自分のコース";
-        database.ref('worldCourses').orderByChild('author').equalTo(currentUser).once('value', snapshot => {
-            let courses = [];
-            snapshot.forEach(child => { courses.push({ key: child.key, ...child.val() }); });
-            courses.reverse();
-            renderList(courses);
-        });
+        title.innerText = "自分のコース(ローカル)";
+        renderList(myCourses); // ローカル保存から表示
     } else if (type === 'friend') {
         title.innerText = `${friendId} のコース`;
         database.ref('worldCourses').orderByChild('author').equalTo(friendId).once('value', snapshot => {
             let courses = [];
-            snapshot.forEach(child => { courses.push({ key: child.key, ...child.val() }); });
-            courses.reverse();
-            renderList(courses);
+            snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
+            courses.reverse(); renderList(courses);
         });
     }
 }
 
 function showCourseDetail(course) {
-    viewingCourseKey = course.key;
+    viewingCourseKey = course.key || null;
     viewingCourseData = course.data;
     document.getElementById('detail-title').innerText = course.name;
-    document.getElementById('detail-author').innerText = course.author || "名無し";
+    document.getElementById('detail-author').innerText = course.author || "自分 (ローカル)";
     document.getElementById('detail-likes').innerText = course.likes || 0;
     document.getElementById('detail-plays').innerText = course.plays || 0;
     
-    let plays = course.plays || 0;
-    let clears = course.clears || 0;
+    let plays = course.plays || 0; let clears = course.clears || 0;
     document.getElementById('detail-clear-rate').innerText = plays > 0 ? Math.floor((clears/plays)*100) : 0;
+
+    // 削除ボタンの表示制御
+    const delBtn = document.getElementById('delete-course-btn');
+    if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) {
+        delBtn.style.display = 'inline-block';
+    } else {
+        delBtn.style.display = 'none';
+    }
 
     const cSec = document.getElementById('comment-section');
     cSec.innerHTML = '';
     if (course.comments) {
-        Object.values(course.comments).forEach(c => {
-            cSec.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`;
-        });
+        Object.values(course.comments).forEach(c => cSec.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`);
     }
     showScreen('course-detail-screen');
+}
+
+function deleteCourse() {
+    if (confirm("本当にこのコースを削除しますか？")) {
+        if (viewingCourseType === 'world') {
+            database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => {
+                alert("世界から削除しました"); showCourseList('world', 'new');
+            });
+        } else if (viewingCourseType === 'my') {
+            myCourses.splice(viewingCourseIndex, 1);
+            localStorage.setItem('myCourses', JSON.stringify(myCourses));
+            alert("ローカルから削除しました"); showCourseList('my', 'new');
+        }
+    }
 }
 
 function likeCourse() {
@@ -191,14 +200,14 @@ function likeCourse() {
 }
 
 function postComment() {
+    if (!viewingCourseKey) return alert("ローカルコースにはコメントできません");
     const text = document.getElementById('comment-select').value;
     database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: text });
-    alert("送信しました！");
-    showScreen('course-list-screen'); 
+    alert("送信しました！"); showScreen('course-list-screen'); 
 }
 
 function startPlayFromDetail() {
-    database.ref(`worldCourses/${viewingCourseKey}/plays`).transaction(p => (p || 0) + 1);
+    if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/plays`).transaction(p => (p || 0) + 1);
     loadAndPlayCourse(viewingCourseData, false);
 }
 
@@ -209,6 +218,7 @@ function startEditor() {
     showScreen('editor-screen');
     floor.visible = true;
     clearScene(); currentCourseData = []; resetPlayerPosition();
+    camPanX = 0; camPanZ = 0; // カメラ位置リセット
 }
 
 function testPlay() {
@@ -226,13 +236,33 @@ function loadAndPlayCourse(courseData, isTest = false) {
     resetPlayerPosition();
 }
 
-function publishCourse() {
+function quitPlay() {
+    if (currentMode === 'test') {
+        showScreen('editor-screen'); // 作り途中に戻る
+        floor.visible = true;
+        resetPlayerPosition();
+    } else {
+        showScreen('home-screen');
+    }
+}
+
+function saveLocalCourse() {
     const name = prompt("コース名を入力", "マイコース");
+    if (name) {
+        myCourses.push({ name: name, data: currentCourseData });
+        localStorage.setItem('myCourses', JSON.stringify(myCourses));
+        alert("保存しました！「自分のコース」から遊べます。");
+        quitPlay();
+    }
+}
+
+function publishCourse() {
+    const name = prompt("公開するコース名を入力", "マイコース");
     if (name) {
         database.ref('worldCourses').push({
             name: name, author: currentUser, data: currentCourseData,
             likes: 0, plays: 0, clears: 0
-        }).then(() => { alert("公開しました！"); showScreen('home-screen'); });
+        }).then(() => { alert("公開しました！"); quitPlay(); });
     }
 }
 
@@ -254,26 +284,57 @@ scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshLambertMaterial({ color: 0x228B22 }));
 floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-// --- カメラ操作 (ドラッグ) ---
+// --- カメラ操作 (ドラッグ ＆ 平行移動) ---
 let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, prevY = 0;
+let camPanX = 0, camPanZ = 0;
+
 function updateCam() {
-    camera.position.set(player.position.x + camRadius * Math.sin(camPhi) * Math.sin(camTheta),
-                        player.position.y + camRadius * Math.cos(camPhi),
-                        player.position.z + camRadius * Math.sin(camPhi) * Math.cos(camTheta));
-    camera.lookAt(player.position);
+    let targetX = player.position.x;
+    let targetZ = player.position.z;
+
+    if (currentMode === 'editor') {
+        targetX += camPanX;
+        targetZ += camPanZ;
+    }
+
+    camera.position.set(
+        targetX + camRadius * Math.sin(camPhi) * Math.sin(camTheta),
+        player.position.y + camRadius * Math.cos(camPhi),
+        targetZ + camRadius * Math.sin(camPhi) * Math.cos(camTheta)
+    );
+    if (!isNaN(targetX) && !isNaN(player.position.y) && !isNaN(targetZ)) {
+        camera.lookAt(targetX, player.position.y, targetZ);
+    } else {
+        resetPlayerPosition(); 
+    }
 }
-window.addEventListener('mousedown', e => { if(e.button===2 || isMobileMode) { isDragging=true; prevX=e.clientX||e.touches?.[0].clientX; prevY=e.clientY||e.touches?.[0].clientY; }});
+
+window.addEventListener('mousedown', e => { 
+    if(e.button===2 || isMobileMode) { 
+        isDragging=true; 
+        prevX=e.clientX||e.touches?.[0].clientX; 
+        prevY=e.clientY||e.touches?.[0].clientY; 
+    }
+});
+
 window.addEventListener('mousemove', e => {
     if(isDragging) {
         let x = e.clientX||e.touches?.[0].clientX; let y = e.clientY||e.touches?.[0].clientY;
-        camTheta -= (x - prevX)*0.01; camPhi -= (y - prevY)*0.01;
-        if(camPhi<0.1) camPhi=0.1; if(camPhi>Math.PI/2.1) camPhi=Math.PI/2.1;
+        
+        if (e.shiftKey && currentMode === 'editor') {
+            let dx = (x - prevX) * 0.05;
+            let dy = (y - prevY) * 0.05;
+            camPanX -= Math.cos(camTheta) * dx - Math.sin(camTheta) * dy;
+            camPanZ -= -Math.sin(camTheta) * dx - Math.cos(camTheta) * dy;
+        } else {
+            camTheta -= (x - prevX)*0.01; camPhi -= (y - prevY)*0.01;
+            if(camPhi<0.1) camPhi=0.1; if(camPhi>Math.PI/2.1) camPhi=Math.PI/2.1;
+        }
         prevX=x; prevY=y;
     }
 });
 window.addEventListener('mouseup', () => isDragging=false);
 
-// スマホ用タッチ視点移動対応
 window.addEventListener('touchstart', e => { if(isMobileMode && e.target===renderer.domElement) { isDragging=true; prevX=e.touches[0].clientX; prevY=e.touches[0].clientY; }});
 window.addEventListener('touchmove', e => {
     if(isDragging && isMobileMode && e.target===renderer.domElement) {
@@ -289,23 +350,49 @@ window.addEventListener('touchend', () => isDragging=false);
 let solidBlocks=[], customDeathBlocks=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
 function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customGoal=null; customStart=null; placed.clear(); meshList=[]; }
 
+// ★修正: fake(すり抜けブロック)の色を黒色(0x111111)に変更しました！
 const materials = {
-    'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6,
+    'normal': 0x888888, 'wood': 0x8B4513, 'glass': 0xadd8e6, 'fake': 0x111111,
     'color-red': 0xff5555, 'color-blue': 0x5555ff, 'color-green': 0x55ff55, 'color-pink': 0xff88ff,
-    'jump': 0xadff2f, 'conveyor': 0x800080, 'death': 0xff0000, 'goal': 0xffff00, 'start': 0xffa500
+    'jump': 0xadff2f, 'conveyor': 0x800080, 'speed': 0x0000ff, 'slow': 0x006400,
+    'death': 0xff0000, 'goal': 0xffff00, 'start': 0xffa500, 'key': 0xffd700, 'door': 0x222222
 };
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
 function placeBlock(type, pos, save=true) {
-    if (placed.has(`${pos.x},${pos.y},${pos.z}`)) return;
+    const posKey = `${pos.x},${pos.y},${pos.z}`;
+    
+    if (type === 'eraser') {
+        if (placed.has(posKey)) {
+            const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z);
+            if (m) {
+                scene.remove(m);
+                meshList = meshList.filter(b => b !== m);
+                solidBlocks = solidBlocks.filter(b => b !== m);
+                customDeathBlocks = customDeathBlocks.filter(b => b !== m);
+                if (customGoal === m) customGoal = null;
+                if (customStart === m) customStart = null;
+                placed.delete(posKey);
+                currentCourseData = currentCourseData.filter(d => !(d.x === pos.x && d.y === pos.y && d.z === pos.z));
+            }
+        }
+        return;
+    }
+
+    if (placed.has(posKey)) return;
     if (type==='goal' && customGoal){ scene.remove(customGoal); customGoal=null; }
     if (type==='start' && customStart){ scene.remove(customStart); customStart=null; }
 
+    const isSolid = (type !== 'fake' && type !== 'key');
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color: materials[type], transparent: type==='glass', opacity: 0.6}));
-    mesh.position.copy(pos); mesh.userData = {type: type}; scene.add(mesh); meshList.push(mesh);
-    placed.add(`${pos.x},${pos.y},${pos.z}`);
-    solidBlocks.push(mesh);
-    if(type==='death') customDeathBlocks.push(mesh); else if(type==='goal') customGoal=mesh; else if(type==='start') customStart=mesh;
+    mesh.position.copy(pos); mesh.userData = {type: type, opened: false}; scene.add(mesh); meshList.push(mesh);
+    placed.add(posKey);
+    
+    if (isSolid) solidBlocks.push(mesh);
+    if(type==='death') customDeathBlocks.push(mesh); 
+    else if(type==='goal') customGoal=mesh; 
+    else if(type==='start') customStart=mesh;
+    
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z});
 }
 
@@ -335,8 +422,9 @@ addTouch('dpad-up','up'); addTouch('dpad-down','down'); addTouch('dpad-left','le
 
 let velocityY=0, isGrounded=false;
 function resetPlayerPosition() {
-    player.position.set(customStart?customStart.position.x:0, customStart?customStart.position.y+1:1, customStart?customStart.position.z:0);
-    velocityY=0; document.getElementById('clear-message').classList.add('hidden');
+    player.position.set(customStart?customStart.position.x:0, customStart?customStart.position.y+1.0:1.0, customStart?customStart.position.z:0);
+    velocityY=0; 
+    document.getElementById('clear-message').classList.add('hidden');
 }
 
 function checkWall() {
@@ -357,7 +445,10 @@ function updatePhysics() {
     if(onType==='conveyor') { player.position.z-=0.05; if(checkWall()) player.position.z+=0.05; }
     if(onType==='jump') { velocityY=0.4; isGrounded=false; }
     else if(keys.space && isGrounded) { velocityY=0.22; keys.space=false; }
-    if (player.position.y < -5) { alert("落下した！"); resetPlayerPosition(); }
+    
+    if (player.position.y < -10 || isNaN(player.position.y)) { 
+        resetPlayerPosition(); 
+    }
 }
 
 function animate() {
@@ -375,11 +466,19 @@ function animate() {
         
         if (customGoal && player.position.distanceTo(customGoal.position)<1.2) {
             document.getElementById('clear-message').classList.remove('hidden');
-            if (currentMode==='test') document.getElementById('publish-btn').classList.remove('hidden');
-            else if (viewingCourseKey && currentMode==='game') database.ref(`worldCourses/${viewingCourseKey}/clears`).transaction(c => (c||0)+1); 
+            if (currentMode==='test') {
+                document.getElementById('btn-save-local').classList.remove('hidden');
+                document.getElementById('btn-publish').classList.remove('hidden');
+                document.getElementById('btn-back-home').classList.add('hidden');
+            } else {
+                document.getElementById('btn-save-local').classList.add('hidden');
+                document.getElementById('btn-publish').classList.add('hidden');
+                document.getElementById('btn-back-home').classList.remove('hidden');
+                if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/clears`).transaction(c => (c||0)+1); 
+            }
         }
         for (let b of customDeathBlocks) {
-            if(Math.abs(player.position.x-b.position.x)<0.8 && Math.abs(player.position.z-b.position.z)<0.8 && Math.abs(player.position.y-b.position.y)<1.0) { alert("死んだ！"); resetPlayerPosition(); break; }
+            if(Math.abs(player.position.x-b.position.x)<0.8 && Math.abs(player.position.z-b.position.z)<0.8 && Math.abs(player.position.y-b.position.y)<1.0) { resetPlayerPosition(); break; }
         }
     }
     updateCam(); renderer.render(scene, camera);

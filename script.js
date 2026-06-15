@@ -180,7 +180,6 @@ const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20
 const player = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), new THREE.MeshLambertMaterial({ color: 0x0000ff })); scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), new THREE.MeshLambertMaterial({ color: 0x228B22 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-// ★これがないとエラーになる「マウス・レイキャスター」の宣言を一番外側に設置！
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
@@ -244,11 +243,9 @@ const BLOCKS = [
     {id:'p_leaf', n:'葉っぱ', d:'装飾', c:0x228b22}, {id:'p_cloud', n:'雲', d:'装飾', c:0xf0f8ff}
 ];
 
-// ★消しゴムボタンを確実に復活！
 function initSidebar() {
     const c = document.getElementById('block-list-container'); if(!c) return; c.innerHTML = '';
     
-    // 消しゴムボタン
     const eb = document.createElement('button');
     eb.id = "btn-eraser"; eb.className = "block-btn";
     eb.onclick = () => selectBlock('eraser');
@@ -313,6 +310,9 @@ function removeBlockMesh(m) {
 
 function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWarpTargetId=null, loadLockId=null) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
+    if (type === 'eraser') {
+        if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) { removeBlockMesh(m); playSE('place'); } } return;
+    }
     if (placed.has(posKey)) return;
     if (['goal','start'].includes(type)) { let ex = type==='goal'?customGoal:customStart; if(ex) removeBlockMesh(ex); }
 
@@ -391,12 +391,11 @@ function drawLinkLines() {
     });
 }
 
-// --- ★修正：マウスイベントを完全に1つだけに統合＆最強計算式 ---
 let isDragging = false, prevX = 0, prevY = 0;
 let rightClickStart = 0, rightClickPos = {x:0, y:0};
 
 window.addEventListener('mousedown', e => { 
-    if (e.target.tagName !== 'CANVAS') return; // UIのクリックは無視
+    if (e.target.tagName !== 'CANVAS') return;
 
     if (e.button === 2) { 
         isDragging = true; prevX = e.clientX; prevY = e.clientY; 
@@ -416,6 +415,7 @@ window.addEventListener('mousedown', e => {
             if (currentBlockType === 'eraser') {
                 if (hit !== floor) { removeBlockMesh(hit); playSE('place'); }
             } else {
+                // ★修正: b.userData.type を安全に取得するようにしました！
                 let n = new THREE.Vector3(0, 1, 0);
                 if (intersects[0].face) {
                     n.copy(intersects[0].face.normal);
@@ -475,11 +475,12 @@ function resetPlayerPosition() {
     customKeys.forEach(k => { k.visible = true; k.userData.collected = false; }); customDoors.forEach(d => { d.visible = true; d.userData.opened = false; });
 }
 
+// ★修正: t を取得する際に安全な方法を使用
 function checkWall() {
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
         if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - b.position.y > -0.5 && player.position.y - b.position.y < 0.8) {
-            let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
+            let t = b.userData.type;
             if (t === 'door') {
                 let lId = b.userData.lockId || b.userData.linkId;
                 if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) {
@@ -524,7 +525,7 @@ function updatePhysics() {
                 let t = w.userData.type;
                 if (t === 'locked_warp') {
                     let lId = w.userData.lockId || w.userData.linkId;
-                    if (lId && !hasKeys.includes(lId)) continue; 
+                    if (lId ? !hasKeys.includes(lId) : hasKeys.length===0) continue; 
                 }
                 let targetId = w.userData.warpTargetId || w.userData.linkId;
                 if (targetId) {

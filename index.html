@@ -6,7 +6,6 @@
     <title>3D パズルメーカー</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
@@ -61,15 +60,24 @@
                 <button onclick="selectBlock('wood')">木</button>
                 <button onclick="selectBlock('brick')">レンガ</button>
                 <button onclick="selectBlock('glass')">ガラス</button>
+                <button onclick="selectBlock('fake')">すり抜け(灰)</button>
+                <button onclick="selectBlock('jump')">ジャンプ(緑)</button>
+                <button onclick="selectBlock('conveyor')">コンベア(紫)</button>
+                <button onclick="selectBlock('speed')">ダッシュ(青)</button>
+                <button onclick="selectBlock('slow')">泥(深緑)</button>
+                <button onclick="selectBlock('key')">カギ(金)</button>
+                <button onclick="selectBlock('door')">ドア(黒)</button>
                 <button onclick="selectBlock('death')">即死(赤)</button>
-                <button onclick="selectBlock('goal')">ゴール</button>
-                <button onclick="selectBlock('start')">スタート</button>
+                <button onclick="selectBlock('goal')">ゴール(黄)</button>
+                <button onclick="selectBlock('start')">スタート(橙)</button>
             </div>
         </div>
 
         <div id="game-screen" class="screen hidden">
-            <div class="hud">
+            <div class="hud" id="play-hud">
                 <span>プレイ中 (WASDで移動 / Spaceでジャンプ)</span>
+                <span id="key-status" style="color: gold; margin-left: 20px; font-weight: bold;"></span>
+                <br>
                 <button onclick="showScreen('home-screen')">やめる</button>
             </div>
             <div id="clear-message" class="hidden">

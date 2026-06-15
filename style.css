@@ -80,13 +80,19 @@ button:hover {
     top: 10px;
     left: 10px;
     pointer-events: auto;
+    background: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 5px;
 }
 
+/* ツールバーが画面外にはみ出さないようにスクロールできるようにしました */
 .toolbar {
     position: absolute;
     bottom: 20px;
     left: 0;
     width: 100%;
+    max-height: 25vh;
+    overflow-y: auto;
     pointer-events: auto;
     display: flex;
     justify-content: center;

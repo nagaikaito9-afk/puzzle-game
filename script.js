@@ -12,13 +12,9 @@ if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
 const database = firebase.database();
 // -------------------------------------------------------------------
 
-// --- BGM・SE システム (Web Audio API) ---
+// --- BGM・SE システム ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let bgmVol = 0.5;
-let seVol = 0.5;
-let isBgmPlaying = false;
-let bgmInterval = null;
-let bgmStep = 0;
+let bgmVol = 0.5; let seVol = 0.5; let isBgmPlaying = false; let bgmInterval = null; let bgmStep = 0;
 const bgmNotes = [261.63, 329.63, 392.00, 329.63, 261.63, 392.00, 440.00, 392.00];
 
 function updateVolume() {
@@ -26,9 +22,7 @@ function updateVolume() {
     seVol = document.getElementById('se-volume').value / 100;
     document.getElementById('bgm-val').innerText = document.getElementById('bgm-volume').value;
     document.getElementById('se-val').innerText = document.getElementById('se-volume').value;
-    
-    if (bgmVol <= 0) toggleBGM(false);
-    else if (!isBgmPlaying && currentUser) toggleBGM(true);
+    if (bgmVol <= 0) toggleBGM(false); else if (!isBgmPlaying && currentUser) toggleBGM(true);
 }
 
 function toggleBGM(play) {
@@ -36,31 +30,21 @@ function toggleBGM(play) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         bgmInterval = setInterval(() => {
             if (bgmVol <= 0) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(bgmNotes[bgmStep % bgmNotes.length] / 2, audioCtx.currentTime);
-            gain.gain.setValueAtTime(bgmVol * 0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.4);
-            bgmStep++;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(bgmNotes[bgmStep % bgmNotes.length] / 2, audioCtx.currentTime);
+            gain.gain.setValueAtTime(bgmVol * 0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.4); bgmStep++;
         }, 400);
         isBgmPlaying = true;
-    } else if (!play && isBgmPlaying) {
-        clearInterval(bgmInterval);
-        isBgmPlaying = false;
-    }
+    } else if (!play && isBgmPlaying) { clearInterval(bgmInterval); isBgmPlaying = false; }
 }
 
 function playSE(type) {
     if (seVol <= 0) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination); const t = audioCtx.currentTime;
 
     if (type === 'place') {
         osc.type = 'square'; osc.frequency.setValueAtTime(400, t);
@@ -75,8 +59,7 @@ function playSE(type) {
         gain.gain.setValueAtTime(seVol * 0.5, t); gain.gain.linearRampToValueAtTime(0, t + 0.3);
         osc.start(t); osc.stop(t + 0.3);
     } else if (type === 'clear') {
-        osc.type = 'triangle';
-        [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => osc.frequency.setValueAtTime(freq, t + i * 0.1));
+        osc.type = 'triangle'; [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => osc.frequency.setValueAtTime(freq, t + i * 0.1));
         gain.gain.setValueAtTime(seVol * 0.5, t); gain.gain.linearRampToValueAtTime(0, t + 0.6);
         osc.start(t); osc.stop(t + 0.6);
     } else if (type === 'key') {
@@ -91,6 +74,7 @@ let currentUser = null;
 let currentMode = 'login';
 let currentBlockType = 'normal'; 
 let currentSpeed = 0.1;
+let isFirstPerson = false; // ★追加: 一人称視点フラグ
 
 window.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -106,23 +90,16 @@ function login() {
     
     database.ref('users/' + id).once('value', snapshot => {
         if (snapshot.exists() && snapshot.val().password === pass) {
-            currentUser = id;
-            document.getElementById('player-name-display').innerText = currentUser;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            toggleBGM(true);
-            showScreen('home-screen');
-        } else {
-            alert("IDかパスワードが違います");
-        }
+            currentUser = id; document.getElementById('player-name-display').innerText = currentUser;
+            if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen');
+        } else { alert("IDかパスワードが違います"); }
     });
 }
 
 function register() {
     let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0');
     if (accCount >= 5) return alert("この端末で作成できるアカウントの上限(5個)に達しました");
-
-    const id = document.getElementById('reg-id').value;
-    const pass = document.getElementById('reg-pass').value;
+    const id = document.getElementById('reg-id').value; const pass = document.getElementById('reg-pass').value;
     if (!id || !pass) return alert("入力してください");
     if (pass.length < 6) return alert("もっと安全性のあるパスワードにしてください（6文字以上必要です）");
 
@@ -130,11 +107,8 @@ function register() {
         if (snapshot.exists()) return alert("その名前はすでに使われています");
         database.ref('users/' + id).set({ password: pass, friends: [] }).then(() => {
             localStorage.setItem('accountCreateCount', (accCount + 1).toString());
-            currentUser = id;
-            document.getElementById('player-name-display').innerText = currentUser;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            toggleBGM(true);
-            showScreen('home-screen');
+            currentUser = id; document.getElementById('player-name-display').innerText = currentUser;
+            if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen');
         });
     });
 }
@@ -144,9 +118,7 @@ function deleteAccount() {
         database.ref('users/' + currentUser).remove().then(() => {
             let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0');
             if (accCount > 0) localStorage.setItem('accountCreateCount', (accCount - 1).toString());
-            currentUser = null;
-            toggleBGM(false);
-            showScreen('login-screen');
+            currentUser = null; toggleBGM(false); showScreen('login-screen');
         });
     }
 }
@@ -158,11 +130,8 @@ function sendFriendRequest() {
 
     database.ref('users/' + targetId).once('value', snapshot => {
         if (snapshot.exists()) {
-            database.ref(`users/${targetId}/friendRequests/${currentUser}`).set(true);
-            alert(`${targetId} さんにフレンドリクエストを送信しました！`);
-        } else {
-            alert("入力されたアカウントが見つかりませんでした");
-        }
+            database.ref(`users/${targetId}/friendRequests/${currentUser}`).set(true); alert(`${targetId} さんにフレンドリクエストを送信しました！`);
+        } else { alert("入力されたアカウントが見つかりませんでした"); }
     });
 }
 
@@ -172,14 +141,10 @@ function acceptRequest(fromId) {
     database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove();
 }
 
-function rejectRequest(fromId) {
-    database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove();
-}
-
+function rejectRequest(fromId) { database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove(); }
 function removeFriend(friendId) {
     if (confirm(`${friendId} さんをフレンドから削除しますか？`)) {
-        database.ref(`users/${currentUser}/friends/${friendId}`).remove();
-        database.ref(`users/${friendId}/friends/${currentUser}`).remove();
+        database.ref(`users/${currentUser}/friends/${friendId}`).remove(); database.ref(`users/${friendId}/friends/${currentUser}`).remove();
     }
 }
 
@@ -192,15 +157,8 @@ function showFriendsScreen() {
         reqContainer.innerHTML = '';
         if (!snap.exists()) return reqContainer.innerHTML = '<p style="text-align:center; font-size:14px;">届いているリクエストはありません</p>';
         snap.forEach(child => {
-            const div = document.createElement('div');
-            div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
-            div.innerHTML = `
-                <span style="line-height:35px;">👤 ${child.key}</span>
-                <div>
-                    <button onclick="acceptRequest('${child.key}')" style="background-color:#4CAF50; padding:5px 10px;">承認</button>
-                    <button onclick="rejectRequest('${child.key}')" style="background-color:#d9534f; padding:5px 10px;">拒否</button>
-                </div>
-            `;
+            const div = document.createElement('div'); div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
+            div.innerHTML = `<span style="line-height:35px;">👤 ${child.key}</span><div><button onclick="acceptRequest('${child.key}')" style="background-color:#4CAF50; padding:5px 10px;">承認</button><button onclick="rejectRequest('${child.key}')" style="background-color:#d9534f; padding:5px 10px;">拒否</button></div>`;
             reqContainer.appendChild(div);
         });
     });
@@ -209,24 +167,16 @@ function showFriendsScreen() {
         frContainer.innerHTML = '';
         if (!snap.exists()) return frContainer.innerHTML = '<p style="text-align:center; font-size:14px;">フレンドがいません</p>';
         snap.forEach(child => {
-            const div = document.createElement('div');
-            div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
-            div.innerHTML = `
-                <button style="flex:1; text-align:left;" onclick="showCourseList('friend', null, '${child.key}')">👤 ${child.key} のコース</button>
-                <button style="background-color:#d9534f; margin-left:5px; padding:5px 10px;" onclick="removeFriend('${child.key}')">削除</button>
-            `;
+            const div = document.createElement('div'); div.style.display = "flex"; div.style.justifyContent = "space-between"; div.style.marginBottom = "5px";
+            div.innerHTML = `<button style="flex:1; text-align:left;" onclick="showCourseList('friend', null, '${child.key}')">👤 ${child.key} のコース</button><button style="background-color:#d9534f; margin-left:5px; padding:5px 10px;" onclick="removeFriend('${child.key}')">削除</button>`;
             frContainer.appendChild(div);
         });
     });
 }
 
 let myCourses = JSON.parse(localStorage.getItem('myCourses')) || [];
-let viewingCourseKey = null;
-let viewingCourseData = null;
-let viewingCourseType = null; 
-let viewingCourseIndex = null;
-let backScreenFromList = 'play-select-screen';
-let currentLoadedCourses = [];
+let viewingCourseKey = null; let viewingCourseData = null; let viewingCourseType = null; let viewingCourseIndex = null;
+let backScreenFromList = 'play-select-screen'; let currentLoadedCourses = [];
 
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
@@ -234,44 +184,30 @@ function showScreen(screenId) {
     document.getElementById('canvas-container').style.display = (screenId === 'editor-screen' || screenId === 'game-screen') ? 'block' : 'none';
     currentMode = screenId.replace('-screen', '');
 }
-
 function goBackFromList() { showScreen(backScreenFromList); }
 
 function showCourseList(type, sortOrder, friendId = null) {
-    showScreen('course-list-screen');
-    viewingCourseType = type;
+    showScreen('course-list-screen'); viewingCourseType = type;
     backScreenFromList = (type === 'friend') ? 'friends-screen' : 'play-select-screen';
     
-    const container = document.getElementById('course-list-container');
-    const title = document.getElementById('course-list-title');
-    const searchInput = document.getElementById('course-search');
-    
+    const container = document.getElementById('course-list-container'); const title = document.getElementById('course-list-title'); const searchInput = document.getElementById('course-search');
     container.innerHTML = '読み込み中...';
-    if (type === 'world') { searchInput.style.display = 'block'; searchInput.value = ''; } 
-    else { searchInput.style.display = 'none'; }
+    if (type === 'world') { searchInput.style.display = 'block'; searchInput.value = ''; } else { searchInput.style.display = 'none'; }
 
-    const renderList = (courses) => {
-        currentLoadedCourses = courses.map((c, i) => ({ ...c, originalIndex: i }));
-        filterCourses();
-    };
+    const renderList = (courses) => { currentLoadedCourses = courses.map((c, i) => ({ ...c, originalIndex: i })); filterCourses(); };
     
     if (type === 'world') {
         title.innerText = sortOrder === 'popular' ? "世界のコース (人気順)" : "世界のコース (新着順)";
         database.ref('worldCourses').once('value', snapshot => {
-            let courses = [];
-            snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
-            if (sortOrder === 'popular') courses.sort((a, b) => (b.likes || 0) - (a.likes || 0));
-            else courses.reverse(); 
-            renderList(courses);
+            let courses = []; snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
+            if (sortOrder === 'popular') courses.sort((a, b) => (b.likes || 0) - (a.likes || 0)); else courses.reverse(); renderList(courses);
         });
     } else if (type === 'my') {
-        title.innerText = "自分のコース(ローカル)";
-        renderList(myCourses); 
+        title.innerText = "自分のコース(ローカル)"; renderList(myCourses); 
     } else if (type === 'friend') {
         title.innerText = `${friendId} のコース`;
         database.ref('worldCourses').orderByChild('author').equalTo(friendId).once('value', snapshot => {
-            let courses = [];
-            snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
+            let courses = []; snapshot.forEach(child => courses.push({ key: child.key, ...child.val() }));
             courses.reverse(); renderList(courses);
         });
     }
@@ -279,34 +215,25 @@ function showCourseList(type, sortOrder, friendId = null) {
 
 function filterCourses() {
     const q = document.getElementById('course-search').value.toLowerCase();
-    const container = document.getElementById('course-list-container');
-    container.innerHTML = '';
+    const container = document.getElementById('course-list-container'); container.innerHTML = '';
     const filtered = currentLoadedCourses.filter(c => (c.name && c.name.toLowerCase().includes(q)) || (c.author && c.author.toLowerCase().includes(q)));
     if (filtered.length === 0) return container.innerHTML = '<p style="text-align:center;">見つかりませんでした</p>';
     
     filtered.forEach((course) => {
-        const btn = document.createElement('button');
-        btn.innerText = `${course.name} (❤️${course.likes || 0}) / 作者: ${course.author || '自分'}`;
-        btn.onclick = () => { viewingCourseIndex = course.originalIndex; showCourseDetail(course); };
-        container.appendChild(btn);
+        const btn = document.createElement('button'); btn.innerText = `${course.name} (❤️${course.likes || 0}) / 作者: ${course.author || '自分'}`;
+        btn.onclick = () => { viewingCourseIndex = course.originalIndex; showCourseDetail(course); }; container.appendChild(btn);
     });
 }
 
 function showCourseDetail(course) {
-    viewingCourseKey = course.key || null;
-    viewingCourseData = course.data;
-    document.getElementById('detail-title').innerText = course.name;
-    document.getElementById('detail-author').innerText = course.author || "自分 (ローカル)";
-    document.getElementById('detail-likes').innerText = course.likes || 0;
-    document.getElementById('detail-plays').innerText = course.plays || 0;
+    viewingCourseKey = course.key || null; viewingCourseData = course.data;
+    document.getElementById('detail-title').innerText = course.name; document.getElementById('detail-author').innerText = course.author || "自分 (ローカル)";
+    document.getElementById('detail-likes').innerText = course.likes || 0; document.getElementById('detail-plays').innerText = course.plays || 0;
     
     let plays = course.plays || 0; let clears = course.clears || 0;
     document.getElementById('detail-clear-rate').innerText = plays > 0 ? Math.floor((clears/plays)*100) : 0;
 
-    const likeBtn = document.getElementById('like-btn');
-    likeBtn.innerText = "❤️ いいね！";
-    likeBtn.disabled = false;
-    
+    const likeBtn = document.getElementById('like-btn'); likeBtn.innerText = "❤️ いいね！"; likeBtn.disabled = false;
     if (viewingCourseKey) {
         database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', snap => {
             if (snap.exists()) { likeBtn.innerText = "❤️ いいね済み"; likeBtn.disabled = true; }
@@ -317,8 +244,7 @@ function showCourseDetail(course) {
     if (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) delBtn.style.display = 'inline-block';
     else delBtn.style.display = 'none';
 
-    const cSec = document.getElementById('comment-section');
-    cSec.innerHTML = '';
+    const cSec = document.getElementById('comment-section'); cSec.innerHTML = '';
     if (course.comments) Object.values(course.comments).forEach(c => cSec.innerHTML += `<div class="comment"><b>${c.user}</b>: ${c.text}</div>`);
     showScreen('course-detail-screen');
 }
@@ -328,9 +254,7 @@ function deleteCourse() {
         if (viewingCourseType === 'world') {
             database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => showCourseList('world', 'new'));
         } else if (viewingCourseType === 'my') {
-            myCourses.splice(viewingCourseIndex, 1);
-            localStorage.setItem('myCourses', JSON.stringify(myCourses));
-            showCourseList('my', 'new');
+            myCourses.splice(viewingCourseIndex, 1); localStorage.setItem('myCourses', JSON.stringify(myCourses)); showCourseList('my', 'new');
         }
     }
 }
@@ -340,10 +264,8 @@ function likeCourse() {
     const courseRef = database.ref(`worldCourses/${viewingCourseKey}`);
     courseRef.child(`likedUsers/${currentUser}`).once('value', snap => {
         if (!snap.exists()) {
-            courseRef.child(`likedUsers/${currentUser}`).set(true);
-            courseRef.child('likes').transaction(likes => (likes || 0) + 1);
-            const likeBtn = document.getElementById('like-btn');
-            likeBtn.innerText = "❤️ いいね済み"; likeBtn.disabled = true;
+            courseRef.child(`likedUsers/${currentUser}`).set(true); courseRef.child('likes').transaction(likes => (likes || 0) + 1);
+            const likeBtn = document.getElementById('like-btn'); likeBtn.innerText = "❤️ いいね済み"; likeBtn.disabled = true;
             document.getElementById('detail-likes').innerText = (parseInt(document.getElementById('detail-likes').innerText) || 0) + 1;
         }
     });
@@ -354,9 +276,7 @@ function postComment() {
     const text = document.getElementById('comment-select').value;
     database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: text });
     document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${text}</div>`;
-    const btn = document.getElementById('post-comment-btn');
-    btn.innerText = "送信完了！";
-    setTimeout(() => { btn.innerText = "コメント送信"; }, 1500);
+    const btn = document.getElementById('post-comment-btn'); btn.innerText = "送信完了！"; setTimeout(() => { btn.innerText = "コメント送信"; }, 1500);
 }
 
 function startPlayFromDetail() {
@@ -364,20 +284,10 @@ function startPlayFromDetail() {
     loadAndPlayCourse(viewingCourseData, false);
 }
 
-// ★追加：コースをエディタで読み込んで編集する機能
 function editCourseFromDetail() {
-    showScreen('editor-screen');
-    floor.visible = true;
-    clearScene();
-    currentCourseData = [];
-    
-    // データを読み込んでブロックを配置（音は鳴らさない）
-    viewingCourseData.forEach(b => {
-        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false);
-    });
-    
-    resetPlayerPosition();
-    camPanX = 0; camPanZ = 0; 
+    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = [];
+    viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false); });
+    resetPlayerPosition(); camPanX = 0; camPanZ = 0; 
 }
 
 
@@ -386,8 +296,7 @@ let currentCourseData = [];
 
 function startEditor() {
     showScreen('editor-screen'); floor.visible = true;
-    clearScene(); currentCourseData = []; resetPlayerPosition();
-    camPanX = 0; camPanZ = 0; 
+    clearScene(); currentCourseData = []; resetPlayerPosition(); camPanX = 0; camPanZ = 0; 
 }
 
 function testPlay() {
@@ -396,46 +305,43 @@ function testPlay() {
 }
 
 function loadAndPlayCourse(courseData, isTest = false) {
-    showScreen('game-screen');
-    floor.visible = false; clearScene();
+    showScreen('game-screen'); floor.visible = false; clearScene();
     courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false));
     resetPlayerPosition();
 }
 
 function quitPlay() {
-    if (currentMode === 'test') {
-        showScreen('editor-screen'); floor.visible = true; resetPlayerPosition();
-    } else {
-        showScreen('home-screen');
-    }
+    isFirstPerson = false; // 戻る時に三人称に戻す
+    if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); } 
+    else { showScreen('home-screen'); }
 }
 
-// ★修正：保存と公開の処理を大幅に改善
+// ★修正：ローカルへの保存時にディープコピー（完全に別のデータとして保存）を行いバグを解消
 function saveLocalCourse() {
     const name = prompt("コース名を入力", "マイコース");
     if (name) {
-        myCourses.push({ name: name, data: currentCourseData });
+        const dataCopy = JSON.parse(JSON.stringify(currentCourseData)); // 参照を切って安全に保存
+        myCourses.push({ name: name, data: dataCopy });
         localStorage.setItem('myCourses', JSON.stringify(myCourses));
         alert("保存しました！「自分のコース」から遊べます。");
         quitPlay();
     }
 }
 
+// ★修正：ローカル保存と世界への公開の並行処理
 function publishCourse() {
     if (!currentUser) return alert("公開するにはログインが必要です。");
-
     const name = prompt("公開するコース名を入力", "マイコース");
     if (name) {
-        // ★修正点1：公開と同時に、必ず自分のローカルデータにも保存する
-        myCourses.push({ name: name, data: currentCourseData });
+        const dataCopy = JSON.parse(JSON.stringify(currentCourseData)); // 参照を切って安全に保存
+        
+        myCourses.push({ name: name, data: dataCopy });
         localStorage.setItem('myCourses', JSON.stringify(myCourses));
 
-        // ★修正点2：エラーが起きた時に原因を表示するように改善
         database.ref('worldCourses').push({
-            name: name, author: currentUser, data: currentCourseData,
-            likes: 0, plays: 0, clears: 0
+            name: name, author: currentUser, data: dataCopy, likes: 0, plays: 0, clears: 0
         }).then(() => { 
-            alert("ローカルに保存し、世界に公開しました！"); 
+            alert("自分のコースに保存し、さらに世界にも公開しました！"); 
             quitPlay(); 
         }).catch(error => {
             alert("⚠️公開に失敗しましたが、自分のコース（ローカル）には保存されました。\n(エラー原因: " + error.message + ")");
@@ -466,12 +372,25 @@ floor.rotation.x = -Math.PI / 2; scene.add(floor);
 let isDragging = false, camTheta = 0, camPhi = 1.0, camRadius = 12, prevX = 0, prevY = 0;
 let camPanX = 0, camPanZ = 0;
 
+// ★修正：VキーによるFPS(一人称)/TPS(三人称)の切り替えロジック
 function updateCam() {
     let targetX = player.position.x; let targetZ = player.position.z;
     if (currentMode === 'editor') { targetX += camPanX; targetZ += camPanZ; }
-    camera.position.set(targetX + camRadius * Math.sin(camPhi) * Math.sin(camTheta), player.position.y + camRadius * Math.cos(camPhi), targetZ + camRadius * Math.sin(camPhi) * Math.cos(camTheta));
-    if (!isNaN(targetX) && !isNaN(player.position.y) && !isNaN(targetZ)) camera.lookAt(targetX, player.position.y, targetZ);
-    else resetPlayerPosition(); 
+
+    if (isFirstPerson && (currentMode === 'game' || currentMode === 'test')) {
+        player.visible = false; // 自分を透明にする
+        camera.position.set(player.position.x, player.position.y + 0.4, player.position.z);
+        // カメラの角度に合わせて向く方向を計算
+        let lookX = player.position.x - Math.sin(camTheta);
+        let lookY = player.position.y + 0.4 + (1.2 - camPhi); 
+        let lookZ = player.position.z - Math.cos(camTheta);
+        camera.lookAt(lookX, lookY, lookZ);
+    } else {
+        player.visible = true; // 三人称なら自分を表示
+        camera.position.set(targetX + camRadius * Math.sin(camPhi) * Math.sin(camTheta), player.position.y + camRadius * Math.cos(camPhi), targetZ + camRadius * Math.sin(camPhi) * Math.cos(camTheta));
+        if (!isNaN(targetX) && !isNaN(player.position.y) && !isNaN(targetZ)) camera.lookAt(targetX, player.position.y, targetZ);
+        else resetPlayerPosition(); 
+    }
 }
 
 window.addEventListener('mousedown', e => { 
@@ -511,7 +430,6 @@ const materials = {
 };
 
 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
-// ★修正：自動ロード時にSEが鳴らないように引数 playSound を追加
 function placeBlock(type, pos, save=true, playSound=true) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
     if (type === 'eraser') {
@@ -554,8 +472,18 @@ window.addEventListener('mousedown', e => {
 
 // --- 操作と物理 ---
 const keys = { w:false, s:false, a:false, d:false, space:false };
-window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=true; if(e.code==='Space') keys.space=true; });
-window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=false; if(e.code==='Space') keys.space=false; });
+// ★追加：Vキーの入力監視を追加
+window.addEventListener('keydown', e => { 
+    let k=e.key.toLowerCase(); 
+    if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=true; 
+    if(e.code==='Space') keys.space=true; 
+    if(k==='v') isFirstPerson = !isFirstPerson; // 視点切り替え
+});
+window.addEventListener('keyup', e => { 
+    let k=e.key.toLowerCase(); 
+    if(k==='w'||k==='s'||k==='a'||k==='d'||k==='arrowup'||k==='arrowdown'||k==='arrowleft'||k==='arrowright') keys[k.replace('arrow','')]=false; 
+    if(e.code==='Space') keys.space=false; 
+});
 
 let velocityY=0, isGrounded=false;
 function resetPlayerPosition() {

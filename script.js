@@ -47,7 +47,7 @@ function playSE(type) {
     else if (type === 'key') { osc.type = 'sine'; osc.frequency.setValueAtTime(880, t); osc.frequency.setValueAtTime(1760, t + 0.1); gain.gain.setValueAtTime(seVol * 0.4, t); gain.gain.linearRampToValueAtTime(0, t + 0.2); osc.start(t); osc.stop(t + 0.2); }
 }
 
-// --- ★自作UIダイアログシステム (alert/prompt/confirmの代わり) ---
+// --- 自作UIダイアログシステム ---
 function showCustomDialog(type, msg, defaultText = "") {
     return new Promise((resolve) => {
         const overlay = document.getElementById('custom-dialog-overlay');
@@ -56,9 +56,7 @@ function showCustomDialog(type, msg, defaultText = "") {
         const btnOk = document.getElementById('dialog-btn-ok');
         const btnCancel = document.getElementById('dialog-btn-cancel');
         
-        msgEl.innerText = msg;
-        overlay.classList.remove('hidden');
-        
+        msgEl.innerText = msg; overlay.classList.remove('hidden');
         btnOk.onclick = null; btnCancel.onclick = null;
         
         if (type === 'alert') {
@@ -78,7 +76,7 @@ function showCustomDialog(type, msg, defaultText = "") {
 }
 
 let currentUser = null, currentMode = 'login', currentBlockType = 'normal', isFirstPerson = false; 
-let gameCourseMode = '3D'; // '3D' or '2D'
+let gameCourseMode = '3D'; 
 window.addEventListener('contextmenu', e => e.preventDefault());
 
 function togglePass(inputId) { const el = document.getElementById(inputId); el.type = el.type === "password" ? "text" : "password"; }
@@ -95,21 +93,19 @@ function register() {
     const id = document.getElementById('reg-id').value, pass = document.getElementById('reg-pass').value;
     if (!id || !pass) return showCustomDialog('alert', "入力してください"); if (pass.length < 6) return showCustomDialog('alert', "6文字以上必要です");
     database.ref('users/' + id).once('value', snapshot => {
-        if (snapshot.exists()) return showCustomDialog('alert', "既に使われています");
+        if (snapshot.exists()) return showCustomDialog('alert', "その名前は既に使われています");
         database.ref('users/' + id).set({ password: pass, friends: [] }).then(() => { localStorage.setItem('accountCreateCount', (accCount + 1).toString()); currentUser = id; document.getElementById('player-name-display').innerText = currentUser; if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen'); });
     });
 }
-async function deleteAccount() {
-    if (await showCustomDialog('confirm', "本当にアカウントを削除しますか？")) { database.ref('users/' + currentUser).remove().then(() => { let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0'); if (accCount > 0) localStorage.setItem('accountCreateCount', (accCount - 1).toString()); currentUser = null; toggleBGM(false); showScreen('login-screen'); }); }
-}
-async function sendFriendRequest() { const targetId = await showCustomDialog('prompt', "リクエストを送るアカウント名"); if (!targetId || targetId === currentUser) return; database.ref('users/' + targetId).once('value', snapshot => { if (snapshot.exists()) { database.ref(`users/${targetId}/friendRequests/${currentUser}`).set(true); showCustomDialog('alert', "送信しました！"); } else showCustomDialog('alert', "見つかりませんでした"); }); }
+async function deleteAccount() { if (await showCustomDialog('confirm', "本当にアカウントを削除しますか？")) { database.ref('users/' + currentUser).remove().then(() => { let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0'); if (accCount > 0) localStorage.setItem('accountCreateCount', (accCount - 1).toString()); currentUser = null; toggleBGM(false); showScreen('login-screen'); }); } }
+async function sendFriendRequest() { const targetId = await showCustomDialog('prompt', "リクエストを送るアカウント名"); if (!targetId || targetId === currentUser) return; database.ref('users/' + targetId).once('value', snapshot => { if (snapshot.exists()) { database.ref(`users/${targetId}/friendRequests/${currentUser}`).set(true); showCustomDialog('alert', "リクエストを送信しました！"); } else showCustomDialog('alert', "見つかりませんでした"); }); }
 function acceptRequest(fromId) { database.ref(`users/${currentUser}/friends/${fromId}`).set(true); database.ref(`users/${fromId}/friends/${currentUser}`).set(true); database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove(); }
 function rejectRequest(fromId) { database.ref(`users/${currentUser}/friendRequests/${fromId}`).remove(); }
-async function removeFriend(friendId) { if (await showCustomDialog('confirm', "削除しますか？")) { database.ref(`users/${currentUser}/friends/${friendId}`).remove(); database.ref(`users/${friendId}/friends/${currentUser}`).remove(); } }
+async function removeFriend(friendId) { if (await showCustomDialog('confirm', "フレンドから削除しますか？")) { database.ref(`users/${currentUser}/friends/${friendId}`).remove(); database.ref(`users/${friendId}/friends/${currentUser}`).remove(); } }
 function showFriendsScreen() {
     showScreen('friends-screen'); const reqC = document.getElementById('friend-requests-container'), frC = document.getElementById('friends-list-container');
-    database.ref(`users/${currentUser}/friendRequests`).on('value', snap => { reqC.innerHTML = ''; if (!snap.exists()) return reqC.innerHTML = '<p>なし</p>'; snap.forEach(child => { const div = document.createElement('div'); div.innerHTML = `<span>👤 ${child.key}</span> <div><button onclick="acceptRequest('${child.key}')">承認</button><button onclick="rejectRequest('${child.key}')">拒否</button></div>`; reqC.appendChild(div); }); });
-    database.ref(`users/${currentUser}/friends`).on('value', snap => { frC.innerHTML = ''; if (!snap.exists()) return frC.innerHTML = '<p>なし</p>'; snap.forEach(child => { const div = document.createElement('div'); div.innerHTML = `<button onclick="showCourseList('friend', null, '${child.key}')">👤 ${child.key} のコース</button><button onclick="removeFriend('${child.key}')" style="background:#d9534f;">削除</button>`; frC.appendChild(div); }); });
+    database.ref(`users/${currentUser}/friendRequests`).on('value', snap => { reqC.innerHTML = ''; if (!snap.exists()) return reqC.innerHTML = '<p>なし</p>'; snap.forEach(child => { const div = document.createElement('div'); div.innerHTML = `<span>👤 ${child.key}</span> <div><button onclick="acceptRequest('${child.key}')">承認</button><button onclick="rejectRequest('${child.key}')" style="background:#d9534f;">拒否</button></div>`; reqC.appendChild(div); }); });
+    database.ref(`users/${currentUser}/friends`).on('value', snap => { frC.innerHTML = ''; if (!snap.exists()) return frC.innerHTML = '<p>フレンドがいません</p>'; snap.forEach(child => { const div = document.createElement('div'); div.innerHTML = `<button onclick="showCourseList('friend', null, '${child.key}')">👤 ${child.key} のコース</button><button onclick="removeFriend('${child.key}')" style="background:#d9534f;">削除</button>`; frC.appendChild(div); }); });
 }
 
 let myCourses = JSON.parse(localStorage.getItem('myCourses')) || [];
@@ -134,16 +130,14 @@ function showCourseList(type, sortOrder, friendId = null) {
 function filterCourses() {
     const q = document.getElementById('course-search').value.toLowerCase(); const c = document.getElementById('course-list-container'); c.innerHTML = '';
     const f = currentLoadedCourses.filter(co => (co.name && co.name.toLowerCase().includes(q)) || (co.author && co.author.toLowerCase().includes(q)));
-    if (f.length === 0) return c.innerHTML = '<p>見つかりません</p>';
+    if (f.length === 0) return c.innerHTML = '<p>見つかりませんでした</p>';
     f.forEach((co) => { const b = document.createElement('button'); b.innerText = `[${co.gameMode||'3D'}] ${co.name} (❤️${co.likes || 0}) / 作者: ${co.author || '自分'}`; b.onclick = () => { viewingCourseIndex = co.originalIndex; showCourseDetail(co); }; c.appendChild(b); });
 }
 
 function showCourseDetail(course) {
     viewingCourseKey = course.key || null; viewingCourseData = course.data; gameCourseMode = course.gameMode || '3D';
-    document.getElementById('detail-title').innerText = course.name; document.getElementById('detail-author').innerText = course.author || "自分";
-    document.getElementById('detail-mode').innerText = gameCourseMode;
-    document.getElementById('detail-likes').innerText = course.likes || 0; document.getElementById('detail-plays').innerText = course.plays || 0;
-    document.getElementById('detail-clear-rate').innerText = course.plays > 0 ? Math.floor(((course.clears||0)/course.plays)*100) : 0;
+    document.getElementById('detail-title').innerText = course.name; document.getElementById('detail-author').innerText = course.author || "自分"; document.getElementById('detail-mode').innerText = gameCourseMode;
+    document.getElementById('detail-likes').innerText = course.likes || 0; document.getElementById('detail-plays').innerText = course.plays || 0; document.getElementById('detail-clear-rate').innerText = course.plays > 0 ? Math.floor(((course.clears||0)/course.plays)*100) : 0;
     const l = document.getElementById('like-btn'); l.innerText = "❤️ いいね！"; l.disabled = false;
     if (viewingCourseKey) { database.ref(`worldCourses/${viewingCourseKey}/likedUsers/${currentUser}`).once('value', s => { if (s.exists()) l.innerText = "💔 いいね解除"; }); } else l.style.display = 'none';
     document.getElementById('delete-course-btn').style.display = (viewingCourseType === 'my' || (viewingCourseType === 'world' && course.author === currentUser)) ? 'inline-block' : 'none';
@@ -151,7 +145,7 @@ function showCourseDetail(course) {
     showScreen('course-detail-screen');
 }
 
-async function deleteCourse() { if (await showCustomDialog('confirm', "削除しますか？")) { if (viewingCourseType === 'world') { database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => showCourseList('world', 'new')); } else { myCourses.splice(viewingCourseIndex, 1); localStorage.setItem('myCourses', JSON.stringify(myCourses)); showCourseList('my', 'new'); } } }
+async function deleteCourse() { if (await showCustomDialog('confirm', "本当にこのコースを削除しますか？")) { if (viewingCourseType === 'world') { database.ref(`worldCourses/${viewingCourseKey}`).remove().then(() => showCourseList('world', 'new')); } else { myCourses.splice(viewingCourseIndex, 1); localStorage.setItem('myCourses', JSON.stringify(myCourses)); showCourseList('my', 'new'); } } }
 
 function likeCourse() {
     if (!viewingCourseKey) return; const r = database.ref(`worldCourses/${viewingCourseKey}`); const l = document.getElementById('like-btn'); l.disabled = true;
@@ -163,20 +157,14 @@ function likeCourse() {
 }
 function postComment() { if (!viewingCourseKey) return; const t = document.getElementById('comment-select').value; database.ref(`worldCourses/${viewingCourseKey}/comments`).push({ user: currentUser, text: t }); document.getElementById('comment-section').innerHTML += `<div class="comment"><b>${currentUser}</b>: ${t}</div>`; document.getElementById('post-comment-btn').innerText = "送信完了！"; setTimeout(() => { document.getElementById('post-comment-btn').innerText = "コメント送信"; }, 1500); }
 function startPlayFromDetail() { if (viewingCourseKey) database.ref(`worldCourses/${viewingCourseKey}/plays`).transaction(p => (p || 0) + 1); loadAndPlayCourse(viewingCourseData, false); }
-function editCourseFromDetail() { 
-    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar();
-    viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir); }); 
-    resetPlayerPosition(); drawLinkLines(); 
-}
+function editCourseFromDetail() { showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar(); viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir); }); resetPlayerPosition(); drawLinkLines(); }
 
 let currentCourseData = [];
 function startEditor(mode) { 
     gameCourseMode = mode; showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
     document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`;
-    camPanX = 0; camPanZ = 0; camTheta = 0; camPhi = gameCourseMode === '2D' ? Math.PI/2 : 1.0; camRadius = 15;
-    initSidebar(); selectBlock('normal'); 
-    placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); 
-    resetPlayerPosition(); 
+    camPanX = 0; camPanZ = 0; camPanY = 0; camTheta = 0; camPhi = gameCourseMode === '2D' ? Math.PI/2 : 1.0; camRadius = 15;
+    initSidebar(); selectBlock('normal'); placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); resetPlayerPosition(); 
 }
 
 function testPlay() { showScreen('game-screen'); currentMode = 'test'; floor.visible = false; resetPlayerPosition(); }
@@ -186,20 +174,31 @@ async function saveLocalCourse() { const name = await showCustomDialog('prompt',
 async function publishCourse() { if (!currentUser) return showCustomDialog('alert', "ログインが必要です"); const name = await showCustomDialog('prompt', "公開するコース名", "マイコース"); if (name) { const d = JSON.parse(JSON.stringify(currentCourseData)); myCourses.push({ name: name, gameMode: gameCourseMode, data: d }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); database.ref('worldCourses').push({ name: name, author: currentUser, gameMode: gameCourseMode, data: d, likes: 0, plays: 0, clears: 0 }).then(() => { showCustomDialog('alert', "世界に公開しました！"); quitPlay(); }).catch(err => { showCustomDialog('alert', "エラー: " + err.message); quitPlay(); }); } }
 
 // --- Three.js ---
-const scene = new THREE.Scene(); scene.background = new THREE.Color(0x87CEEB); 
+const scene = new THREE.Scene(); 
+scene.background = new THREE.Color(0xffebcd); // 可愛いパステル背景色
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.getElementById('canvas-container').appendChild(renderer.domElement);
-const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20, 10); scene.add(light); scene.add(new THREE.AmbientLight(0x606060));
+const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(10, 20, 10); scene.add(light); scene.add(new THREE.AmbientLight(0x808080));
 
-// ★ F11/全画面バグ修正：リサイズ対応
 window.addEventListener('resize', () => { renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); });
 
-const playerGeo = new THREE.SphereGeometry(0.4, 32, 32); const playerMat = new THREE.MeshLambertMaterial({ color: 0x0000ff });
-const player = new THREE.Mesh(playerGeo, playerMat); scene.add(player);
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x228B22 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
+// 可愛いネコプレイヤーモデルの作成
+const player = new THREE.Group();
+const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffa500 });
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 32, 32), bodyMat); player.add(head);
+const earGeo = new THREE.ConeGeometry(0.15, 0.3, 16);
+const earL = new THREE.Mesh(earGeo, bodyMat); earL.position.set(-0.2, 0.3, 0); earL.rotation.z = Math.PI/8; player.add(earL);
+const earR = new THREE.Mesh(earGeo, bodyMat); earR.position.set(0.2, 0.3, 0); earR.rotation.z = -Math.PI/8; player.add(earR);
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), eyeMat); eyeL.position.set(-0.15, 0.1, 0.35); player.add(eyeL);
+const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), eyeMat); eyeR.position.set(0.15, 0.1, 0.35); player.add(eyeR);
+const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff6666 })); nose.position.set(0, 0, 0.38); player.add(nose);
+scene.add(player);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x7cfc00 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
 const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let linkLinesGroup = new THREE.Group(); scene.add(linkLinesGroup); 
-let camTheta = 0, camPhi = 1.0, camRadius = 12, camPanX = 0, camPanZ = 0, camPanY = 0; // Yのパンも追加(2D用)
+let camTheta = 0, camPhi = 1.0, camRadius = 12, camPanX = 0, camPanZ = 0, camPanY = 0;
 
 function updateCam() {
     let targetX = player.position.x; let targetY = player.position.y; let targetZ = player.position.z;
@@ -218,83 +217,52 @@ function updateCam() {
     }
 }
 
-// --- ★100種のブロック定義（ハーフブロック含む） ---
+// --- 100種のブロック定義（ハーフブロック対応） ---
 const textureCache = {};
 function getCanvasTexture(type) {
     if (textureCache[type]) return textureCache[type];
     let c = document.createElement('canvas'); c.width = 64; c.height = 64; let ctx = c.getContext('2d');
-    if (type === 'fake') { ctx.fillStyle='#111'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#555'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(10,10); ctx.lineTo(54,54); ctx.moveTo(54,10); ctx.lineTo(10,54); ctx.stroke(); } 
-    else if (type === 'door') { ctx.fillStyle='#8B4513'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(32, 24, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(26,44); ctx.lineTo(38,44); ctx.lineTo(34,24); ctx.lineTo(30,24); ctx.fill(); } 
-    else if (type === 'warp' || type === 'locked_warp') { ctx.fillStyle = type==='warp' ? '#440088' : '#880000'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.beginPath(); for(let i=1;i<20;i++){ ctx.arc(32,32, i*1.5, 0, Math.PI*2); } ctx.stroke(); } 
-    else if (type === 'ice') { ctx.fillStyle='#add8e6'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(32,10); ctx.lineTo(32,54); ctx.moveTo(10,32); ctx.lineTo(54,32); ctx.moveTo(16,16); ctx.lineTo(48,48); ctx.moveTo(48,16); ctx.lineTo(16,48); ctx.stroke(); } 
-    else if (type === 'conveyor') { ctx.fillStyle='#444'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#ff0'; ctx.font="40px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText('↑', 32, 36); } 
-    else if (type === 'sand') { ctx.fillStyle='#f4a460'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#d2691e'; for(let i=0;i<50;i++){ ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2); } } 
-    else if (type === 'metal') { ctx.fillStyle='#aaa'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#ddd'; ctx.lineWidth=4; ctx.strokeRect(4,4,56,56); ctx.fillStyle='#555'; ctx.beginPath(); ctx.arc(8,8,3,0,7); ctx.arc(56,8,3,0,7); ctx.arc(8,56,3,0,7); ctx.arc(56,56,3,0,7); ctx.fill(); } 
-    else { ctx.fillStyle='#888'; ctx.fillRect(0,0,64,64); }
+    if (type === 'fake') { ctx.fillStyle='#333'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#ff66b2'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(10,10); ctx.lineTo(54,54); ctx.moveTo(54,10); ctx.lineTo(10,54); ctx.stroke(); } 
+    else if (type === 'door') { ctx.fillStyle='#d2b48c'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#553311'; ctx.beginPath(); ctx.arc(32, 24, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.moveTo(26,44); ctx.lineTo(38,44); ctx.lineTo(34,24); ctx.lineTo(30,24); ctx.fill(); } 
+    else if (type === 'warp' || type === 'locked_warp') { ctx.fillStyle = type==='warp' ? '#ffb6c1' : '#ff4500'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.beginPath(); for(let i=1;i<20;i++){ ctx.arc(32,32, i*1.5, 0, Math.PI*2); } ctx.stroke(); } 
+    else if (type === 'ice') { ctx.fillStyle='#e0ffff'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(32,10); ctx.lineTo(32,54); ctx.moveTo(10,32); ctx.lineTo(54,32); ctx.moveTo(16,16); ctx.lineTo(48,48); ctx.moveTo(48,16); ctx.lineTo(16,48); ctx.stroke(); } 
+    else if (type === 'conveyor') { ctx.fillStyle='#ffb347'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#fff'; ctx.font="40px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText('↑', 32, 36); } 
+    else if (type === 'sand') { ctx.fillStyle='#f5deb3'; ctx.fillRect(0,0,64,64); ctx.fillStyle='#cd853f'; for(let i=0;i<50;i++){ ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2); } } 
+    else if (type === 'metal') { ctx.fillStyle='#dcdcdc'; ctx.fillRect(0,0,64,64); ctx.strokeStyle='#fff'; ctx.lineWidth=4; ctx.strokeRect(4,4,56,56); ctx.fillStyle='#a9a9a9'; ctx.beginPath(); ctx.arc(8,8,3,0,7); ctx.arc(56,8,3,0,7); ctx.arc(8,56,3,0,7); ctx.arc(56,56,3,0,7); ctx.fill(); } 
+    else { ctx.fillStyle='#ffcc99'; ctx.fillRect(0,0,64,64); }
     textureCache[type] = new THREE.CanvasTexture(c); return textureCache[type];
 }
 
 const baseBlocks = [
-    {id:'normal', n:'通常ブロック', c:0x888888}, {id:'fake', n:'すり抜け罠', tx:'fake', pass:true},
+    {id:'normal', n:'通常ブロック', c:0xffcc99}, {id:'fake', n:'すり抜け罠', tx:'fake', pass:true},
     {id:'start', n:'スタート', type:'start'}, {id:'goal', n:'ゴール', type:'goal'},
-    {id:'key', n:'カギ', type:'key', pass:true}, {id:'door', n:'ドア', tx:'door'},
+    {id:'key', n:'お魚(カギ)', type:'key', pass:true}, {id:'door', n:'ドア', tx:'door'},
     {id:'warp', n:'ワープ', tx:'warp'}, {id:'locked_warp', n:'カギ付ワープ', tx:'locked_warp'},
     {id:'conveyor', n:'コンベア(右クリックで回転)', tx:'conveyor'},
-    {id:'jump_s', n:'小ジャンプ', c:0xadff2f}, {id:'jump_m', n:'中ジャンプ', c:0x32cd32}, {id:'jump_l', n:'大ジャンプ', c:0x00ff00},
-    {id:'speed_1', n:'ダッシュ', c:0x1e90ff}, {id:'speed_2', n:'超ダッシュ', c:0x0000ff}, {id:'slow', n:'泥', c:0x8b4513},
+    {id:'jump_s', n:'小ジャンプ', c:0x98fb98}, {id:'jump_m', n:'中ジャンプ', c:0x32cd32}, {id:'jump_l', n:'大ジャンプ', c:0x00ff00},
+    {id:'speed_1', n:'ダッシュ', c:0x87cefa}, {id:'speed_2', n:'超ダッシュ', c:0x00bfff}, {id:'slow', n:'泥', c:0x8b4513},
     {id:'ice', n:'氷', tx:'ice'}, {id:'sand', n:'砂', tx:'sand'},
-    {id:'death', n:'即死(マグマ)', c:0xff0000}, {id:'death_w', n:'即死(毒沼)', c:0x800080},
-    {id:'wood', n:'木材', c:0x8B4513}, {id:'brick', n:'レンガ', c:0xB22222}, {id:'metal', n:'鉄', tx:'metal'}, {id:'glass', n:'ガラス', c:0xadd8e6, op:0.6},
-    {id:'c_red', n:'赤色', c:0xff5555}, {id:'c_blue', n:'青色', c:0x5555ff}, {id:'c_green', n:'緑色', c:0x55ff55}, {id:'c_yellow', n:'黄色', c:0xffff55},
-    {id:'c_purple', n:'紫色', c:0xcc55ff}, {id:'c_pink', n:'桃色', c:0xff88ff}, {id:'c_orange', n:'橙色', c:0xffaa55}, {id:'c_cyan', n:'水色', c:0x55ffff},
-    {id:'c_white', n:'白色', c:0xffffff}, {id:'c_black', n:'黒色', c:0x222222}
+    {id:'death', n:'即死(マグマ)', c:0xff4500}, {id:'death_w', n:'即死(毒沼)', c:0x8a2be2},
+    {id:'wood', n:'木材', c:0xdeb887}, {id:'brick', n:'レンガ', c:0xcd5c5c}, {id:'metal', n:'鉄', tx:'metal'}, {id:'glass', n:'ガラス', c:0xe0ffff, op:0.6},
+    {id:'c_red', n:'赤色', c:0xff6b6b}, {id:'c_blue', n:'青色', c:0x6495ed}, {id:'c_green', n:'緑色', c:0x98fb98}, {id:'c_yellow', n:'黄色', c:0xffe4b5},
+    {id:'c_purple', n:'紫色', c:0xdda0dd}, {id:'c_pink', n:'桃色', c:0xffb6c1}, {id:'c_orange', n:'橙色', c:0xffa07a}, {id:'c_cyan', n:'水色', c:0xafeeee},
+    {id:'c_white', n:'白色', c:0xfffaf0}, {id:'c_black', n:'黒色', c:0x696969}
 ];
-// プログラムでハーフブロックや追加色を生成して100種にする
+
 let BLOCKS = [...baseBlocks];
-const extraColors = [{id:'l_red', c:0xffaaaa},{id:'l_blue', c:0xaaaaff},{id:'l_green', c:0xaaffaa},{id:'l_yellow', c:0xffffaa},{id:'d_red', c:0x880000},{id:'d_blue', c:0x000088},{id:'d_green', c:0x008800},{id:'d_yellow', c:0x888800},{id:'p_wood', c:0xdeb887},{id:'p_stone', c:0x708090},{id:'p_gold', c:0xffd700},{id:'p_dirt', c:0xa0522d},{id:'p_leaf', c:0x228b22},{id:'p_cloud', c:0xf0f8ff}];
+const extraColors = [{id:'l_red', c:0xffb6c1},{id:'l_blue', c:0xb0e0e6},{id:'l_green', c:0x98fb98},{id:'l_yellow', c:0xfffacd},{id:'d_red', c:0xcd5c5c},{id:'d_blue', c:0x4169e1},{id:'d_green', c:0x2e8b57},{id:'d_yellow', c:0xdaa520},{id:'p_wood', c:0xf5deb3},{id:'p_stone', c:0x778899},{id:'p_gold', c:0xffd700},{id:'p_dirt', c:0xd2b48c},{id:'p_leaf', c:0x3cb371},{id:'p_cloud', c:0xf8f8ff}];
 extraColors.forEach(e => BLOCKS.push({id: e.id, n: '装飾 '+e.id, c: e.c}));
 const halfCandidates = ['normal','wood','brick','metal','glass','ice','sand','c_red','c_blue','c_green','c_yellow','c_white','c_black'];
 
-function initSidebar() {
-    const c = document.getElementById('block-list-container'); if(!c) return; c.innerHTML = '';
-    const eb = document.createElement('button'); eb.id = "btn-eraser"; eb.className = "block-btn"; eb.onclick = () => selectBlock('eraser');
-    eb.style.cssText = "width:100%; text-align:left; padding:8px; margin-bottom:15px; background-color:#d9534f; color:white; border:2px solid transparent; border-radius:5px;";
-    eb.innerHTML = `<b>🧹 消しゴム</b><br><span style="font-size:11px;">クリックで削除</span>`; c.appendChild(eb);
-    
-    // 2Dモードの時はハーフブロックをリストに追加
-    let activeBlocks = [...BLOCKS];
-    if (gameCourseMode === '2D') {
-        halfCandidates.forEach(h => {
-            let base = BLOCKS.find(b => b.id===h);
-            activeBlocks.push({...base, id: h+'_half', n: base.n+'(ハーフ)', half: true});
-        });
-    }
-    
-    activeBlocks.forEach(b => {
-        c.innerHTML += `<button id="btn-${b.id}" class="block-btn" onclick="selectBlock('${b.id}')"><span class="block-title">${b.n}</span></button>`;
-    });
-}
-
-function selectBlock(type) { 
-    currentBlockType = type; 
-    document.querySelectorAll('[id^="btn-"]').forEach(b => b.style.borderColor = 'transparent');
-    const btn = document.getElementById('btn-' + type); if(btn) btn.style.borderColor = '#4CAF50';
-}
-
-let solidBlocks=[], customDeathBlocks=[], customWarps=[], customGoal=null, customStart=null, placed=new Set(), meshList=[];
-let customKeys=[], customDoors=[], hasKeys=[]; 
-
-function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customWarps=[]; customGoal=null; customStart=null; customKeys=[]; customDoors=[]; placed.clear(); meshList=[]; hasKeys=[]; linkLinesGroup.clear();}
-
-function getBlockMaterial(b) {
-    if (b.tx) return new THREE.MeshLambertMaterial({ map: getCanvasTexture(b.tx), transparent: !!b.op, opacity: b.op||1 });
-    return new THREE.MeshLambertMaterial({ color: b.c||0x888888, transparent: !!b.op, opacity: b.op||1 });
-}
-
 function createMesh(bDef) {
-    if (bDef.type === 'goal') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2), new THREE.MeshLambertMaterial({color:0xcccccc})); p.position.y=1; g.add(p); const f = new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.6), new THREE.MeshLambertMaterial({color:0xff0000, side:THREE.DoubleSide})); f.position.set(0.4, 1.7, 0); g.add(f); return g; }
-    if (bDef.type === 'start') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.2), new THREE.MeshLambertMaterial({color:0xffa500})); p.position.y=0.1; g.add(p); return g; }
-    if (bDef.type === 'key') { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.6), new THREE.MeshLambertMaterial({color:0xffd700})); b.rotation.z = Math.PI/2; g.add(b); const h = new THREE.Mesh(new THREE.TorusGeometry(0.15,0.05,8,16), new THREE.MeshLambertMaterial({color:0xffd700})); h.position.x = -0.4; g.add(h); const t = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.2,0.05), new THREE.MeshLambertMaterial({color:0xffd700})); t.position.set(0.2, -0.15, 0); g.add(t); g.position.y = 0.5; return g; }
+    if (bDef.type === 'goal') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2), new THREE.MeshLambertMaterial({color:0xffaa44})); p.position.y=1; g.add(p); const f = new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.6), new THREE.MeshLambertMaterial({color:0xff66b2, side:THREE.DoubleSide})); f.position.set(0.4, 1.7, 0); g.add(f); return g; }
+    if (bDef.type === 'start') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.2), new THREE.MeshLambertMaterial({color:0xffaa44})); p.position.y=0.1; g.add(p); return g; }
+    if (bDef.type === 'key') { 
+        const g = new THREE.Group(); 
+        const b = new THREE.Mesh(new THREE.ConeGeometry(0.15,0.4,16), new THREE.MeshLambertMaterial({color:0x87cefa})); b.rotation.z = -Math.PI/2; g.add(b); 
+        const t = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,16), new THREE.MeshLambertMaterial({color:0x87cefa})); t.rotation.z = Math.PI/2; t.position.x = -0.25; g.add(t); 
+        g.position.y = 0.5; return g; 
+    }
     if (bDef.half) { const m = new THREE.Mesh(new THREE.BoxGeometry(1,0.5,1), getBlockMaterial(bDef)); m.position.y -= 0.25; return m; }
     return new THREE.Mesh(new THREE.BoxGeometry(1,1,1), getBlockMaterial(bDef));
 }
@@ -320,7 +288,6 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     const fullDef = {...bDef, half: isHalf};
     const mesh = createMesh(fullDef); mesh.position.copy(pos); 
     
-    // 向きの復元
     if (baseId === 'conveyor') { mesh.rotation.y = -loadDir * Math.PI/2; }
     
     const uuid = loadUuid || Math.random().toString(36).substring(2);
@@ -337,7 +304,6 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z, uuid:uuid, warpTargetId:loadWarp, lockId:loadLock, dir:loadDir});
 }
 
-// リンク（ペア）＆コンベア回転処理
 let linkSourceMesh = null;
 async function handleRightClickLink(cx, cy) {
     mouse.set((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1); raycaster.setFromCamera(mouse, camera);
@@ -346,10 +312,8 @@ async function handleRightClickLink(cx, cy) {
         let m = intersects[0].object; while(m.parent && m.parent.type==='Group') m=m.parent;
         const t = m.userData.type.replace('_half','');
         
-        // コンベアの回転
         if (t === 'conveyor') {
-            m.userData.dir = ((m.userData.dir || 0) + 1) % 4;
-            m.rotation.y = -m.userData.dir * Math.PI/2;
+            m.userData.dir = ((m.userData.dir || 0) + 1) % 4; m.rotation.y = -m.userData.dir * Math.PI/2;
             let d = currentCourseData.find(cd => cd.uuid === m.userData.uuid); if(d) d.dir = m.userData.dir;
             playSE('place'); return;
         }
@@ -407,24 +371,10 @@ window.addEventListener('mousedown', e => {
                 let n = new THREE.Vector3(0, 1, 0);
                 if (intersects[0].face) { n.copy(intersects[0].face.normal); const normalMatrix = new THREE.Matrix3().getNormalMatrix(intersects[0].object.matrixWorld); n.applyMatrix3(normalMatrix).normalize(); if (Math.abs(n.x) > Math.abs(n.y) && Math.abs(n.x) > Math.abs(n.z)) { n.set(Math.sign(n.x), 0, 0); } else if (Math.abs(n.y) > Math.abs(n.x) && Math.abs(n.y) > Math.abs(n.z)) { n.set(0, Math.sign(n.y), 0); } else { n.set(0, 0, Math.sign(n.z)); } }
                 
-                // 2Dモード時のZ固定と、ハーフブロックの高さ計算
-                const isHalf = currentBlockType.includes('_half');
-                let py = intersects[0].point.y;
-                let ny = n.y;
-                
+                const isHalf = currentBlockType.includes('_half'); let py = intersects[0].point.y; let ny = n.y;
                 const p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.1));
-                p.x = Math.round(p.x) + 0; 
-                if (gameCourseMode === '2D') p.z = 0; else p.z = Math.round(p.z) + 0;
-                
-                // ハーフブロック配置のY軸計算（上半分か下半分か）
-                if (isHalf) {
-                    let decimalY = py % 1; if(decimalY<0) decimalY+=1;
-                    if (ny === 1) p.y = Math.floor(py) + 0.25; 
-                    else if (ny === -1) p.y = Math.floor(py) - 0.25;
-                    else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25);
-                } else {
-                    p.y = Math.floor(p.y) + 0.5; 
-                }
+                p.x = Math.round(p.x) + 0; if (gameCourseMode === '2D') p.z = 0; else p.z = Math.round(p.z) + 0;
+                if (isHalf) { let decimalY = py % 1; if(decimalY<0) decimalY+=1; if (ny === 1) p.y = Math.floor(py) + 0.25; else if (ny === -1) p.y = Math.floor(py) - 0.25; else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25); } else { p.y = Math.floor(p.y) + 0.5; }
                 placeBlock(currentBlockType, p);
             }
         }
@@ -433,28 +383,16 @@ window.addEventListener('mousedown', e => {
 
 window.addEventListener('mousemove', e => {
     if (isDragging) {
-        if (gameCourseMode === '2D') {
-            camPanX -= (e.clientX - prevX) * 0.05; camPanY += (e.clientY - prevY) * 0.05;
-        } else {
-            if (e.shiftKey && currentMode === 'editor') {
-                let dx = (e.clientX - prevX) * 0.05; let dy = (e.clientY - prevY) * 0.05;
-                camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta);
-            } else {
-                camTheta -= (e.clientX - prevX)*0.01; camPhi -= (e.clientY - prevY)*0.01;
-                if (camPhi < 0.1) camPhi = 0.1; if (camPhi > Math.PI/2.1) camPhi = Math.PI/2.1;
-            }
+        if (gameCourseMode === '2D') { camPanX -= (e.clientX - prevX) * 0.03; camPanY += (e.clientY - prevY) * 0.03; } 
+        else {
+            if (e.shiftKey && currentMode === 'editor') { let dx = (e.clientX - prevX) * 0.05; let dy = (e.clientY - prevY) * 0.05; camPanX -= dx * Math.cos(camTheta) + dy * Math.sin(camTheta); camPanZ -= -dx * Math.sin(camTheta) + dy * Math.cos(camTheta); } 
+            else { camTheta -= (e.clientX - prevX)*0.01; camPhi -= (e.clientY - prevY)*0.01; if (camPhi < 0.1) camPhi = 0.1; if (camPhi > Math.PI/2.1) camPhi = Math.PI/2.1; }
         }
         prevX = e.clientX; prevY = e.clientY;
     }
 });
 
-window.addEventListener('mouseup', e => { 
-    isDragging = false; 
-    if (e.button === 2 && currentMode === 'editor') {
-        let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y);
-        if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY);
-    }
-});
+window.addEventListener('mouseup', e => { isDragging = false; if (e.button === 2 && currentMode === 'editor') { let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y); if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY); } });
 
 // --- 操作と物理 (しゃがみ・2D対応) ---
 const keys = { w:false, s:false, a:false, d:false, space:false, shift:false };
@@ -469,13 +407,10 @@ function resetPlayerPosition() {
 }
 
 function checkWall() {
-    let pHeight = isCrouching ? 0.4 : 0.8; // しゃがみ時の高さ判定
+    let pHeight = isCrouching ? 0.4 : 0.8;
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half;
-        let bHeight = isHalf ? 0.5 : 1.0;
-        let bY = isHalf ? b.position.y + 0.25 : b.position.y; // 中心座標補正
-        
+        let isHalf = b.userData.bDef && b.userData.bDef.half; let bHeight = isHalf ? 0.5 : 1.0; let bY = isHalf ? b.position.y + 0.25 : b.position.y;
         if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - bY > -pHeight && player.position.y - bY < bHeight - 0.2) {
             let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
             if (t === 'door') { let lId = b.userData.lockId || b.userData.linkId; if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) { b.visible = false; b.userData.opened = true; playSE('place'); continue; } }
@@ -485,18 +420,15 @@ function checkWall() {
 }
 
 function updatePhysics() {
-    // しゃがみ処理
     if ((keys.s || keys.down || keys.shift) && isGrounded) { if(!isCrouching){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } 
-    else { if(isCrouching){ player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } } // 立てない場合はしゃがんだまま
+    else { if(isCrouching){ player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } }
 
-    velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null;
-    let pHeight = isCrouching ? 0.4 : 0.8;
+    velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null; let pHeight = isCrouching ? 0.4 : 0.8;
     
     if (floor.visible && player.position.y<=pHeight) { player.position.y=pHeight; velocityY=0; isGrounded=true; }
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half;
-        let bY = isHalf ? b.position.y + 0.25 : b.position.y;
+        let isHalf = b.userData.bDef && b.userData.bDef.half; let bY = isHalf ? b.position.y + 0.25 : b.position.y;
         if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75 && player.position.y-bY>0 && player.position.y-bY<1.0 && velocityY<=0) {
             player.position.y = bY + 0.5 + pHeight - 0.4; velocityY=0; isGrounded=true; onBlock = b;
         }
@@ -526,14 +458,11 @@ function updatePhysics() {
                 let t = w.userData.type.replace('_half','');
                 if (t === 'locked_warp') { let lId = w.userData.lockId || w.userData.linkId; if (lId ? !hasKeys.includes(lId) : hasKeys.length===0) continue; }
                 let targetId = w.userData.warpTargetId || w.userData.linkId;
-                if (targetId) {
-                    let target = customWarps.find(tw => tw.userData.uuid === targetId);
-                    if (target) { player.position.set(target.position.x, target.position.y + 1, target.position.z); warpCooldown = 60; playSE('jump'); break; }
-                }
+                if (targetId) { let target = customWarps.find(tw => tw.userData.uuid === targetId); if (target) { player.position.set(target.position.x, target.position.y + 1, target.position.z); warpCooldown = 60; playSE('jump'); break; } }
             }
         }
     }
-    return isCrouching ? moveSpd * 0.5 : moveSpd; // しゃがみ中は移動速度半減
+    return isCrouching ? moveSpd * 0.5 : moveSpd;
 }
 
 function animate() {
@@ -542,19 +471,14 @@ function animate() {
 
     if ((currentMode==='game' || currentMode==='test') && !isCleared) {
         let ix=0, iz=0; 
-        if (gameCourseMode === '2D') {
-            if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1;
-            player.position.z = 0; // 2DモードはZ軸固定
-        } else {
-            if(keys.up||keys.w) iz-=1; if(keys.down||keys.s) iz+=1; if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1;
-        }
+        if (gameCourseMode === '2D') { if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1; player.position.z = 0; } 
+        else { if(keys.up||keys.w) iz-=1; if(keys.down||keys.s) iz+=1; if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1; }
         
         let speed = updatePhysics(); 
         if(ix!==0 || iz!==0) {
-            let l=Math.sqrt(ix*ix+iz*iz); ix/=l; iz/=l;
-            let dx, dz;
-            if (gameCourseMode === '2D') { dx = ix * speed; dz = 0; }
-            else { dx = (ix*Math.cos(camTheta)+iz*Math.sin(camTheta))*speed; dz = (-ix*Math.sin(camTheta)+iz*Math.cos(camTheta))*speed; }
+            let l=Math.sqrt(ix*ix+iz*iz); ix/=l; iz/=l; let dx, dz;
+            if (gameCourseMode === '2D') { dx = ix * speed; dz = 0; player.rotation.y = ix > 0 ? Math.PI/2 : -Math.PI/2; } 
+            else { dx = (ix*Math.cos(camTheta)+iz*Math.sin(camTheta))*speed; dz = (-ix*Math.sin(camTheta)+iz*Math.cos(camTheta))*speed; player.rotation.y = Math.atan2(dx, dz); } 
             player.position.x+=dx; if(checkWall()) player.position.x-=dx;
             player.position.z+=dz; if(checkWall()) player.position.z-=dz;
         }

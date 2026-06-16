@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D & 2D パズルメーカー</title>
+    <title>3D&2D cat-puzzle-maker</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -17,7 +17,7 @@
             <h3 id="dialog-msg">メッセージ</h3>
             <input type="text" id="dialog-input" class="hidden" placeholder="入力してください">
             <div style="margin-top:15px;">
-                <button id="dialog-btn-ok" style="background-color:#4CAF50;">OK</button>
+                <button id="dialog-btn-ok">OK</button>
                 <button id="dialog-btn-cancel" style="background-color:#d9534f;" class="hidden">キャンセル</button>
             </div>
         </div>
@@ -25,7 +25,7 @@
 
     <div id="ui-layer">
         <div id="login-screen" class="screen">
-            <h1>Puzzle Maker</h1>
+            <h1>🐱 3D&2D cat-puzzle-maker 🐾</h1>
             <h2>ログイン</h2>
             <input type="text" id="login-id" placeholder="アカウント名">
             <input type="password" id="login-pass" placeholder="パスワード">
@@ -36,36 +36,36 @@
 
         <div id="register-screen" class="screen hidden">
             <h1>アカウント作成</h1>
-            <p style="color:yellow; font-size:12px;">※1端末につき5つまで作成可能</p>
+            <p style="color:#ff5555; font-size:12px;">※1端末につき5つまで作成可能</p>
             <input type="text" id="reg-id" placeholder="新しいアカウント名">
             <input type="password" id="reg-pass" placeholder="パスワード (6文字以上)">
             <div><label style="font-size:14px; cursor:pointer;"><input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示</label></div>
             <button onclick="register()">作成してログイン</button>
-            <button onclick="showScreen('login-screen')">戻る</button>
+            <button onclick="showScreen('login-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="home-screen" class="screen hidden">
-            <h1>ホーム</h1>
+            <h1>🏠 ホーム</h1>
             <p>ようこそ、<span id="player-name-display"></span> さん！</p>
-            <button onclick="showScreen('create-select-screen')">コースを作成</button>
-            <button onclick="showScreen('play-select-screen')">コースをプレイ</button>
-            <button onclick="showFriendsScreen()">フレンド</button>
-            <button onclick="showScreen('settings-screen')">設定</button>
+            <button onclick="showScreen('create-select-screen')">🛠 コースを作成</button>
+            <button onclick="showScreen('play-select-screen')">🎮 コースをプレイ</button>
+            <button onclick="showFriendsScreen()">🤝 フレンド</button>
+            <button onclick="showScreen('settings-screen')">⚙️ 設定</button>
         </div>
 
         <div id="create-select-screen" class="screen hidden">
             <h2>作成モードの選択</h2>
             <button onclick="startEditor('3D')" style="background-color:#f0ad4e;">🌐 3Dコースを作成</button>
             <button onclick="startEditor('2D')" style="background-color:#5bc0de;">👾 2Dコースを作成</button>
-            <br><br><button onclick="showScreen('home-screen')">戻る</button>
+            <br><br><button onclick="showScreen('home-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="play-select-screen" class="screen hidden">
             <h2>プレイするコースを選ぶ</h2>
-            <button onclick="showCourseList('world', 'new')">世界のコース (新着順)</button>
-            <button onclick="showCourseList('world', 'popular')">世界のコース (人気順)</button>
-            <button onclick="showCourseList('my', 'new')">自分のコース</button>
-            <br><br><button onclick="showScreen('home-screen')">戻る</button>
+            <button onclick="showCourseList('world', 'new')">🌍 世界のコース (新着順)</button>
+            <button onclick="showCourseList('world', 'popular')">👑 世界のコース (人気順)</button>
+            <button onclick="showCourseList('my', 'new')">📦 自分のコース</button>
+            <br><br><button onclick="showScreen('home-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="friends-screen" class="screen hidden">
@@ -75,22 +75,22 @@
             <div id="friend-requests-container" class="list-container" style="max-height:15vh; margin-bottom:15px;"></div>
             <h3 style="margin-bottom:5px;">🤝 フレンド一覧</h3>
             <div id="friends-list-container" class="list-container" style="max-height:25vh;"></div>
-            <br><button onclick="showScreen('home-screen')">戻る</button>
+            <br><button onclick="showScreen('home-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="course-list-screen" class="screen hidden">
             <h2 id="course-list-title">コース一覧</h2>
             <input type="text" id="course-search" placeholder="コース名・作者名で検索" oninput="filterCourses()" style="width:80%; display:none; margin-bottom:10px;">
             <div id="course-list-container" class="list-container"></div>
-            <br><button onclick="goBackFromList()">戻る</button>
+            <br><button onclick="goBackFromList()" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="course-detail-screen" class="screen hidden">
             <h2 id="detail-title">コース名</h2>
             <p>作者: <span id="detail-author"></span> (<span id="detail-mode"></span>)</p>
             <p>❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
-            <button onclick="likeCourse()" id="like-btn">❤️ いいね！</button>
-            <button onclick="startPlayFromDetail()">プレイ開始</button>
+            <button onclick="likeCourse()" id="like-btn" style="background-color:#ff66b2;">❤️ いいね！</button>
+            <button onclick="startPlayFromDetail()">🎮 プレイ開始</button>
             <button onclick="editCourseFromDetail()" style="background-color:#f0ad4e;">🛠 エディタで開く</button>
             <br><br><button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none;">🗑 このコースを削除</button>
             <br><br>
@@ -102,27 +102,29 @@
                 <option value="神コース！">神コース！</option>
                 <option value="クリアできた！">クリアできた！</option>
             </select>
-            <button onclick="postComment()" id="post-comment-btn">コメント送信</button>
-            <br><button onclick="showScreen('course-list-screen')">戻る</button>
+            <button onclick="postComment()" id="post-comment-btn">💬 コメント送信</button>
+            <br><button onclick="showScreen('course-list-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="settings-screen" class="screen hidden">
-            <h2>設定</h2>
+            <h2>⚙️ 設定</h2>
             <label>BGM 音量: <span id="bgm-val">50</span>% <input type="range" id="bgm-volume" min="0" max="100" value="50" oninput="updateVolume()"></label><br><br>
             <label>効果音 音量: <span id="se-val">50</span>% <input type="range" id="se-volume" min="0" max="100" value="50" oninput="updateVolume()"></label><br><br>
             <button onclick="deleteAccount()" style="background-color:#d9534f;">アカウントを完全に削除する</button><br><br>
-            <button onclick="showScreen('home-screen')">戻る</button>
+            <button onclick="showScreen('home-screen')" style="background-color:#aaa;">戻る</button>
         </div>
 
         <div id="editor-screen" class="screen hidden">
             <div class="hud">
                 <span id="editor-mode-display">モード: エディタ</span><br>
-                <span style="font-size:12px; color:#ff0;">※コンベア/ペア設定は「右クリック」！</span><br>
-                <button onclick="testPlay()">完成（チェック）</button>
-                <button onclick="showScreen('home-screen')">ホームに戻る</button>
+                <span style="font-size:12px; color:#aa5500;">※コンベア/ペア設定は「右クリック」！</span><br>
+                <button onclick="testPlay()">✅ 完成（チェック）</button>
+                <button onclick="showScreen('home-screen')" style="background-color:#aaa;">ホームに戻る</button>
             </div>
             <div id="editor-sidebar" class="sidebar">
-                <button onclick="selectBlock('eraser')" style="background-color:#d9534f; margin-bottom:15px;" class="block-btn">🧹 消しゴム</button>
+                <button onclick="selectBlock('eraser')" style="background-color:#d9534f; margin-bottom:15px; border-color:#990000; color:#fff;" class="block-btn">
+                    <span class="block-title">🧹 消しゴム</span><span class="block-desc" style="color:#ffcccc;">クリックで削除</span>
+                </button>
                 <div id="block-list-container"></div>
             </div>
         </div>
@@ -130,13 +132,13 @@
         <div id="game-screen" class="screen hidden">
             <div class="hud" id="play-hud">
                 <span>プレイ中 <span style="font-size:12px;">(W/Space:ジャンプ, S/Shift:しゃがみ)</span></span>
-                <button onclick="quitPlay()">やめる</button>
+                <button onclick="quitPlay()" style="background-color:#aaa;">やめる</button>
             </div>
             <div id="clear-message" class="hidden">
-                <h2>クリア！</h2>
-                <button id="btn-save-local" onclick="saveLocalCourse()" class="hidden">保存する</button>
-                <button id="btn-publish" onclick="publishCourse()" class="hidden">世界に公開する</button>
-                <button id="btn-back-home" onclick="quitPlay()" class="hidden">戻る</button>
+                <h2 style="font-size: 32px; color:#ffaa00;">🎉 クリア！ 🎉</h2>
+                <button id="btn-save-local" onclick="saveLocalCourse()" class="hidden">📦 保存する</button>
+                <button id="btn-publish" onclick="publishCourse()" class="hidden">🌍 世界に公開する</button>
+                <button id="btn-back-home" onclick="quitPlay()" class="hidden" style="background-color:#aaa;">戻る</button>
             </div>
         </div>
     </div>

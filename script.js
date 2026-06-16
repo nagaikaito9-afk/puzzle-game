@@ -266,6 +266,7 @@ extraColors.forEach(e => BLOCKS.push({id: e.id, n: '装飾 '+e.id, c: e.c}));
 let solidBlocks=[], customDeathBlocks=[], customWarps=[], customCheckpoints=[], customSwitches=[], customGoal=null, customStart=null;
 let placed=new Set(), meshList=[], customKeys=[], customDoors=[], hasKeys=[]; 
 
+// --- ブロック管理・エディタ関数 ---
 function clearScene() { meshList.forEach(m => scene.remove(m)); solidBlocks=[]; customDeathBlocks=[]; customWarps=[]; customCheckpoints=[]; customSwitches=[]; customGoal=null; customStart=null; customKeys=[]; customDoors=[]; placed.clear(); meshList=[]; hasKeys=[]; linkLinesGroup.clear();}
 
 function initSidebar() {
@@ -285,7 +286,7 @@ function createMesh(bDef) {
     if (bDef.type === 'start') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.2), new THREE.MeshLambertMaterial({color:0xffaa44})); p.position.y=0.1; g.add(p); return g; }
     if (bDef.type === 'checkpoint') { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,1.5), new THREE.MeshLambertMaterial({color:0xcccccc})); p.position.y=0.75; g.add(p); const f = new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.4), new THREE.MeshLambertMaterial({color:0x0000ff, side:THREE.DoubleSide})); f.position.set(0.3, 1.3, 0); g.add(f); return g; }
     if (bDef.type === 'key') { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.ConeGeometry(0.15,0.4,16), new THREE.MeshLambertMaterial({color:0x87cefa})); b.rotation.z = -Math.PI/2; g.add(b); const t = new THREE.Mesh(new THREE.ConeGeometry(0.1,0.2,16), new THREE.MeshLambertMaterial({color:0x87cefa})); t.rotation.z = Math.PI/2; t.position.x = -0.25; g.add(t); g.position.y = 0.5; return g; }
-    if (bDef.half) { const m = new THREE.Mesh(new THREE.BoxGeometry(1,0.5,1), getBlockMaterial(bDef)); m.position.y -= 0.25; return m; }
+    if (bDef.half) { return new THREE.Mesh(new THREE.BoxGeometry(1,0.5,1), getBlockMaterial(bDef)); }
     return new THREE.Mesh(new THREE.BoxGeometry(1,1,1), getBlockMaterial(bDef));
 }
 
@@ -343,7 +344,7 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     }
 }
 
-// ★ 一括配置（フィル）対応の右クリック処理
+// リンク（ペア）＆一括配置（フィル）対応の右クリック処理
 let linkSourceMesh = null;
 async function handleRightClickLink(cx, cy) {
     mouse.set((cx/window.innerWidth)*2-1, -(cy/window.innerHeight)*2+1); raycaster.setFromCamera(mouse, camera);
@@ -353,7 +354,6 @@ async function handleRightClickLink(cx, cy) {
         const tFull = m.userData.type;
         const t = tFull.replace('_half','');
         
-        // 向きを変えるブロック
         if (t === 'conveyor') {
             m.userData.dir = ((m.userData.dir || 0) + 1) % 4; m.rotation.y = -m.userData.dir * Math.PI/2;
             let d = currentCourseData.find(cd => cd.uuid === m.userData.uuid); if(d) d.dir = m.userData.dir;
@@ -366,7 +366,6 @@ async function handleRightClickLink(cx, cy) {
             updateEditorPlane(); playSE('key'); return;
         }
 
-        // ペアやフィルに関係ない特殊ブロック
         if (!linkSourceMesh && ['start', 'goal', 'checkpoint'].includes(t)) return;
 
         if (!linkSourceMesh) {
@@ -389,7 +388,6 @@ async function handleRightClickLink(cx, cy) {
             const t1Full = linkSourceMesh.userData.type;
             const t1 = t1Full.replace('_half','');
             
-            // ペア設定
             if (['key','door','warp','locked_warp'].includes(t1)) {
                 let success = false;
                 if (['warp', 'locked_warp'].includes(t1) && ['warp', 'locked_warp'].includes(t)) { linkSourceMesh.userData.warpTargetId = m.userData.uuid; m.userData.warpTargetId = linkSourceMesh.userData.uuid; success = true; }
@@ -397,7 +395,6 @@ async function handleRightClickLink(cx, cy) {
                 if (success) { updateCourseDataLinks(); showCustomDialog('alert', "🔗 ペアを構築しました！"); linkSourceMesh = null; drawLinkLines(); } 
                 else { showCustomDialog('alert', "⚠️ その組み合わせではペアを組めません"); linkSourceMesh = null; }
             } 
-            // 範囲一括配置（フィル）
             else {
                 if (t1Full !== tFull) { linkSourceMesh = null; return showCustomDialog('alert', "⚠️ 違う種類のブロックです！\nキャンセルしました。"); }
                 
@@ -514,7 +511,7 @@ window.addEventListener('mousemove', e => {
 
 window.addEventListener('mouseup', e => { isDragging = false; if (e.button === 2 && currentMode === 'editor') { let dist = Math.abs(e.clientX - rightClickPos.x) + Math.abs(e.clientY - rightClickPos.y); if (Date.now() - rightClickStart < 250 && dist < 5) handleRightClickLink(e.clientX, e.clientY); } });
 
-// --- キー操作・ライフ・物理演算 ---
+// --- キー操作・物理演算 ---
 const keys = { w:false, s:false, a:false, d:false, space:false, shift:false, left:false, right:false, up:false, down:false };
 window.addEventListener('keydown', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d') keys[k]=true; if(k==='arrowup') keys.up=true; if(k==='arrowdown') keys.down=true; if(k==='arrowleft') keys.left=true; if(k==='arrowright') keys.right=true; if(e.code==='Space') keys.space=true; if(e.key==='Shift') keys.shift=true; if(k==='v') isFirstPerson = !isFirstPerson; });
 window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k==='w'||k==='s'||k==='a'||k==='d') keys[k]=false; if(k==='arrowup') keys.up=false; if(k==='arrowdown') keys.down=false; if(k==='arrowleft') keys.left=false; if(k==='arrowright') keys.right=false; if(e.code==='Space') keys.space=false; if(e.key==='Shift') keys.shift=false; });
@@ -529,30 +526,16 @@ function updateLifeDisplay() {
 
 function die() {
     playSE('death'); life--; updateLifeDisplay();
-    if (life <= 0) {
-        document.getElementById('gameover-message').classList.remove('hidden');
-    } else {
-        respawnPlayer();
-    }
+    if (life <= 0) { document.getElementById('gameover-message').classList.remove('hidden'); } else { respawnPlayer(); }
 }
 
 function respawnPlayer() {
     if (activeCheckpoint) {
         player.position.set(activeCheckpoint.x, activeCheckpoint.y, activeCheckpoint.z);
-        if (gameCourseMode === '2D') { 
-            current2DAxis = activeCheckpoint.axis; 
-            plane2DX = activeCheckpoint.planeX; 
-            plane2DZ = activeCheckpoint.planeZ; 
-            updateEditorPlane(); 
-        }
+        if (gameCourseMode === '2D') { current2DAxis = activeCheckpoint.axis; plane2DX = activeCheckpoint.planeX; plane2DZ = activeCheckpoint.planeZ; updateEditorPlane(); }
     } else {
         player.position.set(customStart?customStart.position.x:0, customStart?customStart.position.y+1.0:1.0, customStart?customStart.position.z:0);
-        if (gameCourseMode === '2D') { 
-            current2DAxis = customStart ? (customStart.userData.axis2D || 'X') : 'X'; 
-            plane2DX = customStart ? (customStart.userData.planeX || 0) : 0; 
-            plane2DZ = customStart ? (customStart.userData.planeZ || 0) : 0; 
-            updateEditorPlane(); 
-        }
+        if (gameCourseMode === '2D') { current2DAxis = customStart ? (customStart.userData.axis2D || 'X') : 'X'; plane2DX = customStart ? (customStart.userData.planeX || 0) : 0; plane2DZ = customStart ? (customStart.userData.planeZ || 0) : 0; updateEditorPlane(); }
     }
     velocityY=0; isCrouching=false; player.scale.y = 1.0; warpCooldown=0; switchCooldown=0;
 }
@@ -572,19 +555,12 @@ function checkWall() {
     let pY = player.position.y;
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half; 
-        let bHeight = isHalf ? 0.5 : 1.0; 
-        let bY = isHalf ? b.position.y + 0.25 : b.position.y;
+        let isHalf = b.userData.bDef && b.userData.bDef.half; let bHeight = isHalf ? 0.5 : 1.0; let bY = b.position.y;
         
         if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8) {
             if (pY - pRadius < bY + bHeight/2 - 0.05 && pY + pRadius > bY - bHeight/2 + 0.05) {
                 let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
-                if (t === 'door') { 
-                    let lId = b.userData.lockId || b.userData.linkId; 
-                    if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) { 
-                        b.visible = false; b.userData.opened = true; playSE('place'); continue; 
-                    } 
-                }
+                if (t === 'door') { let lId = b.userData.lockId || b.userData.linkId; if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) { b.visible = false; b.userData.opened = true; playSE('place'); continue; } }
                 return true;
             }
         }
@@ -595,10 +571,7 @@ function updatePhysics() {
     if ((keys.s || keys.down || keys.shift) && isGrounded) { 
         if(!isCrouching){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } 
     } else { 
-        if(isCrouching){ 
-            player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; 
-            if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } 
-        } 
+        if(isCrouching){ player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } 
     }
 
     velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null; 
@@ -607,9 +580,7 @@ function updatePhysics() {
     if (floor.visible && player.position.y <= pRadius) { player.position.y = pRadius; velocityY=0; isGrounded=true; }
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half; 
-        let bHeight = isHalf ? 0.5 : 1.0; 
-        let bY = isHalf ? b.position.y + 0.25 : b.position.y;
+        let isHalf = b.userData.bDef && b.userData.bDef.half; let bHeight = isHalf ? 0.5 : 1.0; let bY = b.position.y;
         
         if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75) {
             if (player.position.y - pRadius - velocityY >= bY + bHeight/2 - 0.1 && player.position.y - pRadius <= bY + bHeight/2 + 0.2 && velocityY <= 0) {
@@ -648,8 +619,7 @@ function updatePhysics() {
                         player.position.set(target.position.x, target.position.y + 1, target.position.z); 
                         if (gameCourseMode === '2D') {
                             current2DAxis = target.userData.axis2D || 'X';
-                            plane2DX = target.userData.planeX || 0;
-                            plane2DZ = target.userData.planeZ || 0;
+                            plane2DX = Math.round(target.position.x); plane2DZ = Math.round(target.position.z);
                             updateEditorPlane(); 
                         }
                         warpCooldown = 60; playSE('jump'); break; 
@@ -677,8 +647,7 @@ function updatePhysics() {
             activeCheckpoint = { 
                 x: cp.position.x, y: cp.position.y + 1, z: cp.position.z, 
                 axis: cp.userData.axis2D || 'X', 
-                planeX: cp.userData.planeX || Math.round(cp.position.x), 
-                planeZ: cp.userData.planeZ || Math.round(cp.position.z) 
+                planeX: Math.round(cp.position.x), planeZ: Math.round(cp.position.z) 
             };
             if(cp.children[1]) cp.children[1].material.color.setHex(0x00ff00); 
             playSE('clear');

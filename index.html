@@ -23,6 +23,12 @@
         </div>
     </div>
 
+    <div id="gameover-message" class="hidden" style="text-align: center; background: rgba(0,0,0,0.85); padding: 40px; border-radius: 20px; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); pointer-events:auto; z-index: 100; border: 4px solid #ff4444;">
+        <h2 style="font-size: 36px; color:#ff4444; margin-top:0;">ゲームオーバー😿</h2>
+        <button onclick="retryPlay()" style="background-color:#f0ad4e; font-size:18px;">🔄 最初からやり直す</button>
+        <button onclick="quitPlay()" style="background-color:#aaa; font-size:18px;">🚪 やめる</button>
+    </div>
+
     <div id="ui-layer">
         <div id="login-screen" class="screen">
             <h1>🐱 3D&2D cat-puzzle-maker 🐾</h1>
@@ -117,7 +123,7 @@
         <div id="editor-screen" class="screen hidden">
             <div class="hud">
                 <span id="editor-mode-display">モード: エディタ</span><br>
-                <span style="font-size:12px; color:#aa5500;">※コンベア/ペア設定は「右クリック」！</span><br>
+                <span style="font-size:12px; color:#aa5500;">※コンベア/ペア/視点切替は「右クリック」！</span><br>
                 <button onclick="testPlay()">✅ 完成（チェック）</button>
                 <button onclick="showScreen('home-screen')" style="background-color:#aaa;">ホームに戻る</button>
             </div>
@@ -132,7 +138,8 @@
         <div id="game-screen" class="screen hidden">
             <div class="hud" id="play-hud">
                 <span>プレイ中 <span style="font-size:12px;">(W/Space:ジャンプ, S/Shift:しゃがみ)</span></span>
-                <button onclick="quitPlay()" style="background-color:#aaa;">やめる</button>
+                <span id="life-display" style="color:#ff4444; font-size:20px; font-weight:bold; margin-left:15px; letter-spacing:2px;">❤️❤️❤️</span>
+                <button onclick="quitPlay()" style="background-color:#aaa; margin-left:20px;">やめる</button>
             </div>
             <div id="clear-message" class="hidden">
                 <h2 style="font-size: 32px; color:#ffaa00;">🎉 クリア！ 🎉</h2>

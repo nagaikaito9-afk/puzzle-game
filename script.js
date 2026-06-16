@@ -77,6 +77,33 @@ function showCustomDialog(type, msg, defaultText = "") {
 }
 window.addEventListener('contextmenu', e => e.preventDefault());
 
+// --- ★ 100種類のコメント初期化 ---
+const PRESET_COMMENTS = [
+    "おもしろい！", "楽しい！", "神コース！", "最高！", "天才！", "すごい！", "いいね！", "また遊びたい！", "お気に入り！", "おすすめ！",
+    "難しい..", "激ムズ！", "鬼畜すぎる！", "簡単！", "ちょうどいい！", "歯ごたえあり！", "初見殺し！", "罠がエグい！", "絶妙な難易度！", "リトライ必須！",
+    "笑った！", "泣いた..", "びっくり！", "焦った！", "ドキドキした！", "スッキリ！", "悔しい！", "癒された！", "熱中した！", "感動した！",
+    "クオリティ高い！", "作り込みがすごい！", "発想に脱帽！", "センスある！", "プロの犯行！", "芸術的！", "素晴らしい！", "良作！", "名作！", "傑作！",
+    "ギミックが面白い！", "ワープが楽しい！", "コンベア難しい！", "ジャンプがシビア！", "スイッチの使い方が上手い！", "謎解きが深い！", "アスレチック最高！", "ルートが綺麗！", "隠しルート見つけた！", "構成が上手い！",
+    "ネコかわいい！", "にゃーん！", "お魚ゲット！", "ネコチャン！", "癒やしネコ！", "しゃがみネコ可愛い！", "ネコまっしぐら！", "にゃんこ！", "ネコの動きが良い！", "ネコ好きにはたまらない！",
+    "クリアできた！", "惜しい！", "あと少し！", "ギブアップ..", "ついにクリア！", "なんとかクリア！", "余裕でクリア！", "奇跡のクリア！", "クリアタイム更新！", "何度も死んだ..",
+    "時間泥棒！", "何回もやっちゃう！", "気づいたらこんな時間！", "徹夜でやった！", "100回は死んだ！", "一発クリア！", "ノーミスクリア！", "TAしたくなる！", "友達におすすめしたい！", "家族で遊んだ！",
+    "デザインが好き！", "色が綺麗！", "BGMが良い！", "効果音が気持ちいい！", "雰囲気が最高！", "景色が良い！", "かわいい世界観！", "ドット絵っぽい！", "ピコピコ音が良い！", "レトロ感ある！",
+    "勉強になる！", "参考にします！", "自分も作りたい！", "新作待ってます！", "続編希望！", "アップデート期待！", "応援してます！", "ありがとう！", "おつかれさま！", "GG！(Good Game)"
+];
+
+function initComments() {
+    const select = document.getElementById('comment-select');
+    if (!select) return;
+    select.innerHTML = ''; // HTMLの中身を空にする
+    PRESET_COMMENTS.forEach(text => {
+        const opt = document.createElement('option');
+        opt.value = text;
+        opt.innerText = text;
+        select.appendChild(opt);
+    });
+}
+initComments(); // スクリプト読み込み時に100種を追加
+
 // --- アカウント・UI制御 ---
 function togglePass(inputId) { const el = document.getElementById(inputId); el.type = el.type === "password" ? "text" : "password"; }
 function login() { const id = document.getElementById('login-id').value, pass = document.getElementById('login-pass').value; if (!id || !pass) return showCustomDialog('alert', "入力してください"); database.ref('users/' + id).once('value', snapshot => { if (snapshot.exists() && snapshot.val().password === pass) { currentUser = id; document.getElementById('player-name-display').innerText = currentUser; if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen'); } else showCustomDialog('alert', "IDかパスワードが違います"); }); }
@@ -376,7 +403,6 @@ function drawLinkLines() {
     });
 }
 
-// マウスイベント
 let isDragging = false, prevX = 0, prevY = 0, rightClickStart = 0, rightClickPos = {x:0, y:0};
 window.addEventListener('mousedown', e => { 
     if (e.target.tagName !== 'CANVAS') return;
@@ -412,9 +438,7 @@ window.addEventListener('mousedown', e => {
                     if (isHalf) { let decimalY = py % 1; if(decimalY < 0) decimalY += 1; if (ny === 1) p.y = Math.floor(py) + 0.25; else if (ny === -1) p.y = Math.floor(py) - 0.25; else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25); } 
                     else { p.y = Math.floor(p.y) + 0.5; }
                 }
-                
-                // ★修正: 配置時に現在の軸の次元情報を記録する
-                placeBlock(currentBlockType, p, true, true, null, null, null, 0, current2DAxis, plane2DX, plane2DZ);
+                placeBlock(currentBlockType, p);
             }
         }
     }
@@ -489,7 +513,6 @@ function resetPlayerPosition() {
 }
 
 function checkWall() {
-    // ★修正: しゃがみ中の高さを 0.2（半径）にして完璧な判定に！
     let pRadius = isCrouching ? 0.2 : 0.4;
     let pY = player.position.y;
     for (let b of solidBlocks) {
@@ -499,7 +522,6 @@ function checkWall() {
         let bY = isHalf ? b.position.y + 0.25 : b.position.y;
         
         if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8) {
-            // プレイヤーの中心Yから半径を引いたものが、ブロックの上と下の間にあるか
             if (pY - pRadius < bY + bHeight/2 - 0.05 && pY + pRadius > bY - bHeight/2 + 0.05) {
                 let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
                 if (t === 'door') { 
@@ -535,7 +557,6 @@ function updatePhysics() {
         let bY = isHalf ? b.position.y + 0.25 : b.position.y;
         
         if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75) {
-            // ブロックに乗る正確な計算
             if (player.position.y - pRadius - velocityY >= bY + bHeight/2 - 0.1 && player.position.y - pRadius <= bY + bHeight/2 + 0.2 && velocityY <= 0) {
                 player.position.y = bY + bHeight/2 + pRadius; velocityY=0; isGrounded=true; onBlock = b;
             }
@@ -570,11 +591,10 @@ function updatePhysics() {
                     let target = customWarps.find(tw => tw.userData.uuid === targetId); 
                     if (target) { 
                         player.position.set(target.position.x, target.position.y + 1, target.position.z); 
-                        // ★ ワープ先のブロックの次元（軸）データを読み取ってカメラを回す！
                         if (gameCourseMode === '2D') {
                             current2DAxis = target.userData.axis2D || 'X';
-                            plane2DX = Math.round(target.position.x);
-                            plane2DZ = Math.round(target.position.z);
+                            plane2DX = target.userData.planeX || 0;
+                            plane2DZ = target.userData.planeZ || 0;
                             updateEditorPlane(); 
                         }
                         warpCooldown = 60; playSE('jump'); break; 

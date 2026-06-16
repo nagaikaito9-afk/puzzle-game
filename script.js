@@ -24,7 +24,7 @@ let backScreenFromList = 'play-select-screen', currentLoadedCourses = [], curren
 const maxLife = 3;
 let life = 3;
 let activeCheckpoint = null; 
-let current2DAxis = 'X'; // 'X' または 'Z'
+let current2DAxis = 'X'; 
 let plane2DX = 0, plane2DZ = 0; 
 
 // --- BGM・SE システム ---
@@ -103,42 +103,27 @@ function startPlayFromDetail() {
     activeCheckpoint = null; current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
     loadAndPlayCourse(viewingCourseData, false); 
 }
-
 function editCourseFromDetail() { 
-    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
-    document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar(); 
-    viewingCourseData.forEach(b => { 
-        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir, b.axis2D, b.planeX, b.planeZ); 
-    }); 
+    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar(); 
+    viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir, b.axis2D, b.planeX, b.planeZ); }); 
     current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0; resetPlayerPosition(); drawLinkLines(); updateEditorPlane(); 
 }
-
 function startEditor(mode) { 
-    gameCourseMode = mode; showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
-    document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`;
+    gameCourseMode = mode; showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`;
     camPanX = 0; camPanZ = 0; camPanY = 0; camTheta = 0; camPhi = gameCourseMode === '2D' ? Math.PI/2 : 1.0; camRadius = 15;
     current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
-    initSidebar(); selectBlock('normal'); 
-    placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false, null, null, null, 0, 'X', 0, 0); 
-    resetPlayerPosition(); updateEditorPlane();
+    initSidebar(); selectBlock('normal'); placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); resetPlayerPosition(); updateEditorPlane();
 }
-
 function testPlay() { 
     showScreen('game-screen'); currentMode = 'test'; floor.visible = false; gridHelper2D.visible = false; plane2D.visible = false; 
     activeCheckpoint = null; current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
     resetPlayerPosition(); 
 }
-
 function loadAndPlayCourse(courseData, isTest = false) { 
     showScreen('game-screen'); floor.visible = false; gridHelper2D.visible = false; plane2D.visible = false; clearScene(); 
-    courseData.forEach(b => {
-        let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null);
-        let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null);
-        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, wId, lId, b.dir, b.axis2D, b.planeX, b.planeZ);
-    }); 
+    courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, b.warpTargetId, b.lockId, b.dir, b.axis2D, b.planeX, b.planeZ)); 
     resetPlayerPosition(); 
 }
-
 function quitPlay() { 
     isFirstPerson = false; document.getElementById('gameover-message').classList.add('hidden');
     if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); drawLinkLines(); updateEditorPlane(); } 
@@ -171,7 +156,6 @@ scene.add(player);
 
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x7cfc00 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-// 2Dモード用グリッドと透明プレーン
 const plane2D = new THREE.Mesh(new THREE.PlaneGeometry(200, 100), new THREE.MeshBasicMaterial({ visible: false })); scene.add(plane2D);
 const gridHelper2D = new THREE.GridHelper(100, 100, 0xffaa44, 0xffcc88); scene.add(gridHelper2D);
 
@@ -288,7 +272,6 @@ function removeBlockMesh(m) {
     drawLinkLines();
 }
 
-// ★修正: 配置時に軸（axis2D, planeX, planeZ）をブロックに記憶させる
 function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWarp=null, loadLock=null, loadDir=0, loadAxis=null, loadPx=null, loadPz=null) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
     if (type === 'eraser') { if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) { removeBlockMesh(m); playSE('place'); } } return; }
@@ -429,7 +412,9 @@ window.addEventListener('mousedown', e => {
                     if (isHalf) { let decimalY = py % 1; if(decimalY < 0) decimalY += 1; if (ny === 1) p.y = Math.floor(py) + 0.25; else if (ny === -1) p.y = Math.floor(py) - 0.25; else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25); } 
                     else { p.y = Math.floor(p.y) + 0.5; }
                 }
-                placeBlock(currentBlockType, p);
+                
+                // ★修正: 配置時に現在の軸の次元情報を記録する
+                placeBlock(currentBlockType, p, true, true, null, null, null, 0, current2DAxis, plane2DX, plane2DZ);
             }
         }
     }
@@ -472,7 +457,6 @@ function die() {
     }
 }
 
-// ★修正: リスポーン時に軸情報を復元する
 function respawnPlayer() {
     if (activeCheckpoint) {
         player.position.set(activeCheckpoint.x, activeCheckpoint.y, activeCheckpoint.z);
@@ -505,30 +489,56 @@ function resetPlayerPosition() {
 }
 
 function checkWall() {
-    let pHeight = isCrouching ? 0.4 : 0.8;
+    // ★修正: しゃがみ中の高さを 0.2（半径）にして完璧な判定に！
+    let pRadius = isCrouching ? 0.2 : 0.4;
+    let pY = player.position.y;
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half; let bHeight = isHalf ? 0.5 : 1.0; let bY = isHalf ? b.position.y + 0.25 : b.position.y;
-        if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8 && player.position.y - bY > -pHeight && player.position.y - bY < bHeight - 0.2) {
-            let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
-            if (t === 'door') { let lId = b.userData.lockId || b.userData.linkId; if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) { b.visible = false; b.userData.opened = true; playSE('place'); continue; } }
-            return true;
+        let isHalf = b.userData.bDef && b.userData.bDef.half; 
+        let bHeight = isHalf ? 0.5 : 1.0; 
+        let bY = isHalf ? b.position.y + 0.25 : b.position.y;
+        
+        if (Math.abs(player.position.x - b.position.x)<0.8 && Math.abs(player.position.z - b.position.z)<0.8) {
+            // プレイヤーの中心Yから半径を引いたものが、ブロックの上と下の間にあるか
+            if (pY - pRadius < bY + bHeight/2 - 0.05 && pY + pRadius > bY - bHeight/2 + 0.05) {
+                let t = b.userData.bDef ? b.userData.bDef.type : b.userData.type;
+                if (t === 'door') { 
+                    let lId = b.userData.lockId || b.userData.linkId; 
+                    if (hasKeys.includes(lId) || (!lId && hasKeys.length>0)) { 
+                        b.visible = false; b.userData.opened = true; playSE('place'); continue; 
+                    } 
+                }
+                return true;
+            }
         }
     } return false;
 }
 
 function updatePhysics() {
-    if ((keys.s || keys.down || keys.shift) && isGrounded) { if(!isCrouching){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } 
-    else { if(isCrouching){ player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } } }
+    if ((keys.s || keys.down || keys.shift) && isGrounded) { 
+        if(!isCrouching){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } 
+    } else { 
+        if(isCrouching){ 
+            player.scale.y = 1.0; player.position.y += 0.2; isCrouching = false; 
+            if(checkWall()){ player.scale.y = 0.5; player.position.y -= 0.2; isCrouching = true; } 
+        } 
+    }
 
-    velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null; let pHeight = isCrouching ? 0.4 : 0.8;
+    velocityY -= 0.01; player.position.y += velocityY; isGrounded = false; let onBlock = null; 
+    let pRadius = isCrouching ? 0.2 : 0.4;
     
-    if (floor.visible && player.position.y<=pHeight) { player.position.y=pHeight; velocityY=0; isGrounded=true; }
+    if (floor.visible && player.position.y <= pRadius) { player.position.y = pRadius; velocityY=0; isGrounded=true; }
     for (let b of solidBlocks) {
         if (b.userData.opened) continue;
-        let isHalf = b.userData.bDef && b.userData.bDef.half; let bY = isHalf ? b.position.y + 0.25 : b.position.y;
-        if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75 && player.position.y-bY>0 && player.position.y-bY<1.0 && velocityY<=0) {
-            player.position.y = bY + 0.5 + pHeight - 0.4; velocityY=0; isGrounded=true; onBlock = b;
+        let isHalf = b.userData.bDef && b.userData.bDef.half; 
+        let bHeight = isHalf ? 0.5 : 1.0; 
+        let bY = isHalf ? b.position.y + 0.25 : b.position.y;
+        
+        if (Math.abs(player.position.x-b.position.x)<0.75 && Math.abs(player.position.z-b.position.z)<0.75) {
+            // ブロックに乗る正確な計算
+            if (player.position.y - pRadius - velocityY >= bY + bHeight/2 - 0.1 && player.position.y - pRadius <= bY + bHeight/2 + 0.2 && velocityY <= 0) {
+                player.position.y = bY + bHeight/2 + pRadius; velocityY=0; isGrounded=true; onBlock = b;
+            }
         }
     }
     
@@ -549,7 +559,6 @@ function updatePhysics() {
     if((keys.space || (gameCourseMode==='2D' && (keys.w || keys.up))) && isGrounded && !isCrouching) { velocityY=0.22; keys.space=false; keys.w=false; keys.up=false; playSE('jump'); }
     if (player.position.y < -10 || isNaN(player.position.y)) { die(); }
 
-    // ★修正: ワープ時にワープ先の次元（軸）を読み込んでカメラを切り替える
     if (warpCooldown > 0) warpCooldown--;
     if (warpCooldown <= 0) {
         for (let w of customWarps) {
@@ -561,11 +570,12 @@ function updatePhysics() {
                     let target = customWarps.find(tw => tw.userData.uuid === targetId); 
                     if (target) { 
                         player.position.set(target.position.x, target.position.y + 1, target.position.z); 
+                        // ★ ワープ先のブロックの次元（軸）データを読み取ってカメラを回す！
                         if (gameCourseMode === '2D') {
                             current2DAxis = target.userData.axis2D || 'X';
-                            plane2DX = target.userData.planeX || 0;
-                            plane2DZ = target.userData.planeZ || 0;
-                            updateEditorPlane(); // カメラと操作軸が切り替わる！
+                            plane2DX = Math.round(target.position.x);
+                            plane2DZ = Math.round(target.position.z);
+                            updateEditorPlane(); 
                         }
                         warpCooldown = 60; playSE('jump'); break; 
                     } 
@@ -586,15 +596,14 @@ function updatePhysics() {
         }
     }
 
-    // ★修正: 中間地点を踏んだ時に次元（軸）の情報を保存する
     for (let cp of customCheckpoints) {
         if (!cp.userData.collected && Math.abs(player.position.x-cp.position.x)<0.8 && Math.abs(player.position.z-cp.position.z)<0.8 && Math.abs(player.position.y-cp.position.y)<1.0) {
             cp.userData.collected = true;
             activeCheckpoint = { 
                 x: cp.position.x, y: cp.position.y + 1, z: cp.position.z, 
                 axis: cp.userData.axis2D || 'X', 
-                planeX: cp.userData.planeX || 0, 
-                planeZ: cp.userData.planeZ || 0 
+                planeX: cp.userData.planeX || Math.round(cp.position.x), 
+                planeZ: cp.userData.planeZ || Math.round(cp.position.z) 
             };
             if(cp.children[1]) cp.children[1].material.color.setHex(0x00ff00); 
             playSE('clear');

@@ -8,7 +8,9 @@ const firebaseConfig = {
     messagingSenderId: "481443120933",
     appId: "1:481443120933:web:54f499ce24fd4c683e3ccc"
 };
-if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+if (!firebase.apps.length) { 
+    firebase.initializeApp(firebaseConfig); 
+}
 const database = firebase.database();
 
 // --- 共通変数・ゲーム進行用変数 ---
@@ -18,12 +20,12 @@ let myCourses = JSON.parse(localStorage.getItem('myCourses')) || [];
 let viewingCourseKey = null, viewingCourseData = null, viewingCourseType = null, viewingCourseIndex = null;
 let backScreenFromList = 'play-select-screen', currentLoadedCourses = [], currentCourseData = [];
 
-// ★ライフと2D軸システム
+// ライフと2D軸システム
 const maxLife = 3;
 let life = 3;
-let activeCheckpoint = null; // 中間地点データ
-let current2DAxis = 'X'; // 'X' か 'Z'
-let plane2DX = 0, plane2DZ = 0; // 2Dモードでの基準座標
+let activeCheckpoint = null; 
+let current2DAxis = 'X'; // 'X' または 'Z'
+let plane2DX = 0, plane2DZ = 0; 
 
 // --- BGM・SE システム ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -75,7 +77,7 @@ function showCustomDialog(type, msg, defaultText = "") {
 }
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// --- アカウント・UI ---
+// --- アカウント・UI制御 ---
 function togglePass(inputId) { const el = document.getElementById(inputId); el.type = el.type === "password" ? "text" : "password"; }
 function login() { const id = document.getElementById('login-id').value, pass = document.getElementById('login-pass').value; if (!id || !pass) return showCustomDialog('alert', "入力してください"); database.ref('users/' + id).once('value', snapshot => { if (snapshot.exists() && snapshot.val().password === pass) { currentUser = id; document.getElementById('player-name-display').innerText = currentUser; if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen'); } else showCustomDialog('alert', "IDかパスワードが違います"); }); }
 function register() { let accCount = parseInt(localStorage.getItem('accountCreateCount') || '0'); if (accCount >= 5) return showCustomDialog('alert', "上限に達しました"); const id = document.getElementById('reg-id').value, pass = document.getElementById('reg-pass').value; if (!id || !pass) return showCustomDialog('alert', "入力してください"); if (pass.length < 6) return showCustomDialog('alert', "6文字以上必要です"); database.ref('users/' + id).once('value', snapshot => { if (snapshot.exists()) return showCustomDialog('alert', "その名前は使われています"); database.ref('users/' + id).set({ password: pass, friends: [] }).then(() => { localStorage.setItem('accountCreateCount', (accCount + 1).toString()); currentUser = id; document.getElementById('player-name-display').innerText = currentUser; if (audioCtx.state === 'suspended') audioCtx.resume(); toggleBGM(true); showScreen('home-screen'); }); }); }
@@ -101,33 +103,48 @@ function startPlayFromDetail() {
     activeCheckpoint = null; current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
     loadAndPlayCourse(viewingCourseData, false); 
 }
+
 function editCourseFromDetail() { 
-    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar(); 
-    viewingCourseData.forEach(b => { placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir); }); 
+    showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
+    document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`; initSidebar(); 
+    viewingCourseData.forEach(b => { 
+        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), true, false, b.uuid, b.warpTargetId, b.lockId, b.dir, b.axis2D, b.planeX, b.planeZ); 
+    }); 
     current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0; resetPlayerPosition(); drawLinkLines(); updateEditorPlane(); 
 }
+
 function startEditor(mode) { 
-    gameCourseMode = mode; showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`;
+    gameCourseMode = mode; showScreen('editor-screen'); floor.visible = true; clearScene(); currentCourseData = []; 
+    document.getElementById('editor-mode-display').innerText = `モード: エディタ (${gameCourseMode})`;
     camPanX = 0; camPanZ = 0; camPanY = 0; camTheta = 0; camPhi = gameCourseMode === '2D' ? Math.PI/2 : 1.0; camRadius = 15;
     current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
-    initSidebar(); selectBlock('normal'); placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); resetPlayerPosition(); updateEditorPlane();
+    initSidebar(); selectBlock('normal'); 
+    placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false, null, null, null, 0, 'X', 0, 0); 
+    resetPlayerPosition(); updateEditorPlane();
 }
+
 function testPlay() { 
     showScreen('game-screen'); currentMode = 'test'; floor.visible = false; gridHelper2D.visible = false; plane2D.visible = false; 
     activeCheckpoint = null; current2DAxis = 'X'; plane2DX = 0; plane2DZ = 0;
     resetPlayerPosition(); 
 }
+
 function loadAndPlayCourse(courseData, isTest = false) { 
     showScreen('game-screen'); floor.visible = false; gridHelper2D.visible = false; plane2D.visible = false; clearScene(); 
-    courseData.forEach(b => placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, b.warpTargetId, b.lockId, b.dir)); 
+    courseData.forEach(b => {
+        let wId = b.warpTargetId || (['warp','locked_warp'].includes(b.type) ? b.linkId : null);
+        let lId = b.lockId || (['key','door','locked_warp'].includes(b.type) ? b.linkId : null);
+        placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, wId, lId, b.dir, b.axis2D, b.planeX, b.planeZ);
+    }); 
     resetPlayerPosition(); 
 }
+
 function quitPlay() { 
     isFirstPerson = false; document.getElementById('gameover-message').classList.add('hidden');
     if (currentMode === 'test') { showScreen('editor-screen'); floor.visible = true; resetPlayerPosition(); drawLinkLines(); updateEditorPlane(); } 
     else { showScreen('home-screen'); } 
 }
-function retryPlay() { resetPlayerPosition(); }
+function retryPlay() { document.getElementById('gameover-message').classList.add('hidden'); resetPlayerPosition(); }
 
 async function saveLocalCourse() { const name = await showCustomDialog('prompt', "コース名を入力", "マイコース"); if (name) { myCourses.push({ name: name, gameMode: gameCourseMode, data: JSON.parse(JSON.stringify(currentCourseData)) }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); showCustomDialog('alert', "保存しました！"); quitPlay(); } }
 async function publishCourse() { if (!currentUser) return showCustomDialog('alert', "ログインが必要です"); const name = await showCustomDialog('prompt', "公開するコース名", "マイコース"); if (name) { const d = JSON.parse(JSON.stringify(currentCourseData)); myCourses.push({ name: name, gameMode: gameCourseMode, data: d }); localStorage.setItem('myCourses', JSON.stringify(myCourses)); database.ref('worldCourses').push({ name: name, author: currentUser, gameMode: gameCourseMode, data: d, likes: 0, plays: 0, clears: 0 }).then(() => { showCustomDialog('alert', "世界に公開しました！"); quitPlay(); }).catch(err => { showCustomDialog('alert', "エラー: " + err.message); quitPlay(); }); } }
@@ -245,7 +262,7 @@ function initSidebar() {
     let activeBlocks = [...BLOCKS];
     if (gameCourseMode === '2D') { BLOCKS.forEach(base => { if (!base.pass && !['start','goal','key','door','checkpoint','axis_switch'].includes(base.id) && !base.id.includes('warp')) { activeBlocks.push({...base, id: base.id + '_half', n: base.n + '(ハーフ)', half: true}); } }); }
     activeBlocks.forEach(b => {
-        if (b.id === 'axis_switch' && gameCourseMode !== '2D') return; // 3D時はスイッチ非表示
+        if (b.id === 'axis_switch' && gameCourseMode !== '2D') return; 
         const btn = document.createElement('button'); btn.id = "btn-" + b.id; btn.className = "block-btn"; btn.onclick = () => selectBlock(b.id); btn.innerHTML = `<span class="block-title">${b.n}</span>`; c.appendChild(btn);
     });
 }
@@ -271,7 +288,8 @@ function removeBlockMesh(m) {
     drawLinkLines();
 }
 
-function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWarp=null, loadLock=null, loadDir=0) {
+// ★修正: 配置時に軸（axis2D, planeX, planeZ）をブロックに記憶させる
+function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWarp=null, loadLock=null, loadDir=0, loadAxis=null, loadPx=null, loadPz=null) {
     const posKey = `${pos.x},${pos.y},${pos.z}`;
     if (type === 'eraser') { if (placed.has(posKey)) { const m = meshList.find(b => b.position.x === pos.x && b.position.y === pos.y && b.position.z === pos.z); if (m) { removeBlockMesh(m); playSE('place'); } } return; }
     if (placed.has(posKey)) return;
@@ -285,8 +303,16 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     
     if (baseId === 'conveyor') { mesh.rotation.y = -loadDir * Math.PI/2; }
     
+    let ax = loadAxis || current2DAxis;
+    let px = loadPx !== null ? loadPx : plane2DX;
+    let pz = loadPz !== null ? loadPz : plane2DZ;
+
     const uuid = loadUuid || Math.random().toString(36).substring(2);
-    mesh.userData = { type: type, uuid: uuid, warpTargetId: loadWarp, lockId: loadLock, opened: false, collected: false, bDef: fullDef, dir: loadDir };
+    mesh.userData = { 
+        type: type, uuid: uuid, warpTargetId: loadWarp, lockId: loadLock, 
+        opened: false, collected: false, bDef: fullDef, dir: loadDir,
+        axis2D: ax, planeX: px, planeZ: pz
+    };
     scene.add(mesh); meshList.push(mesh); placed.add(posKey);
     
     if (playSound) playSE('place');
@@ -298,7 +324,13 @@ function placeBlock(type, pos, save=true, playSound=true, loadUuid=null, loadWar
     else if (baseId==='checkpoint') customCheckpoints.push(mesh);
     else if (baseId==='axis_switch') customSwitches.push(mesh);
     
-    if(save) currentCourseData.push({type:type, x:pos.x, y:pos.y, z:pos.z, uuid:uuid, warpTargetId:loadWarp, lockId:loadLock, dir:loadDir});
+    if(save) {
+        currentCourseData.push({
+            type:type, x:pos.x, y:pos.y, z:pos.z, 
+            uuid:uuid, warpTargetId:loadWarp, lockId:loadLock, dir:loadDir,
+            axis2D: ax, planeX: px, planeZ: pz
+        });
+    }
 }
 
 // リンク（ペア）＆右クリック動作
@@ -316,7 +348,6 @@ async function handleRightClickLink(cx, cy) {
             playSE('place'); return;
         }
 
-        // ★ 2Dエディタ用：縦横スイッチの右クリックで平面回転
         if (t === 'axis_switch' && gameCourseMode === '2D') {
             current2DAxis = current2DAxis === 'X' ? 'Z' : 'X';
             plane2DX = Math.round(m.position.x); plane2DZ = Math.round(m.position.z);
@@ -426,7 +457,6 @@ window.addEventListener('keyup', e => { let k=e.key.toLowerCase(); if(k==='w'||k
 
 let velocityY=0, isGrounded=false, warpCooldown=0, switchCooldown=0, isCrouching=false;
 
-// ★ ライフ表示の更新
 function updateLifeDisplay() {
     let html = '';
     for(let i=0; i<maxLife; i++) { if (i < life) html += '❤️'; else html += '🖤'; }
@@ -442,13 +472,24 @@ function die() {
     }
 }
 
+// ★修正: リスポーン時に軸情報を復元する
 function respawnPlayer() {
     if (activeCheckpoint) {
         player.position.set(activeCheckpoint.x, activeCheckpoint.y, activeCheckpoint.z);
-        if (gameCourseMode === '2D') { current2DAxis = activeCheckpoint.axis; plane2DX = activeCheckpoint.planeX; plane2DZ = activeCheckpoint.planeZ; updateEditorPlane(); }
+        if (gameCourseMode === '2D') { 
+            current2DAxis = activeCheckpoint.axis; 
+            plane2DX = activeCheckpoint.planeX; 
+            plane2DZ = activeCheckpoint.planeZ; 
+            updateEditorPlane(); 
+        }
     } else {
         player.position.set(customStart?customStart.position.x:0, customStart?customStart.position.y+1.0:1.0, customStart?customStart.position.z:0);
-        if (gameCourseMode === '2D') { current2DAxis = 'X'; plane2DX = customStart?customStart.position.x:0; plane2DZ = customStart?customStart.position.z:0; updateEditorPlane(); }
+        if (gameCourseMode === '2D') { 
+            current2DAxis = customStart ? (customStart.userData.axis2D || 'X') : 'X'; 
+            plane2DX = customStart ? (customStart.userData.planeX || 0) : 0; 
+            plane2DZ = customStart ? (customStart.userData.planeZ || 0) : 0; 
+            updateEditorPlane(); 
+        }
     }
     velocityY=0; isCrouching=false; player.scale.y = 1.0; warpCooldown=0; switchCooldown=0;
 }
@@ -508,6 +549,7 @@ function updatePhysics() {
     if((keys.space || (gameCourseMode==='2D' && (keys.w || keys.up))) && isGrounded && !isCrouching) { velocityY=0.22; keys.space=false; keys.w=false; keys.up=false; playSE('jump'); }
     if (player.position.y < -10 || isNaN(player.position.y)) { die(); }
 
+    // ★修正: ワープ時にワープ先の次元（軸）を読み込んでカメラを切り替える
     if (warpCooldown > 0) warpCooldown--;
     if (warpCooldown <= 0) {
         for (let w of customWarps) {
@@ -515,30 +557,46 @@ function updatePhysics() {
                 let t = w.userData.type.replace('_half','');
                 if (t === 'locked_warp') { let lId = w.userData.lockId || w.userData.linkId; if (lId ? !hasKeys.includes(lId) : hasKeys.length===0) continue; }
                 let targetId = w.userData.warpTargetId || w.userData.linkId;
-                if (targetId) { let target = customWarps.find(tw => tw.userData.uuid === targetId); if (target) { player.position.set(target.position.x, target.position.y + 1, target.position.z); warpCooldown = 60; playSE('jump'); break; } }
+                if (targetId) { 
+                    let target = customWarps.find(tw => tw.userData.uuid === targetId); 
+                    if (target) { 
+                        player.position.set(target.position.x, target.position.y + 1, target.position.z); 
+                        if (gameCourseMode === '2D') {
+                            current2DAxis = target.userData.axis2D || 'X';
+                            plane2DX = target.userData.planeX || 0;
+                            plane2DZ = target.userData.planeZ || 0;
+                            updateEditorPlane(); // カメラと操作軸が切り替わる！
+                        }
+                        warpCooldown = 60; playSE('jump'); break; 
+                    } 
+                }
             }
         }
     }
     
-    // ★縦横切り替えスイッチの判定
     if (switchCooldown > 0) switchCooldown--;
     if (switchCooldown <= 0 && gameCourseMode === '2D') {
         for (let sw of customSwitches) {
             if (Math.abs(player.position.x-sw.position.x)<0.5 && Math.abs(player.position.z-sw.position.z)<0.5 && Math.abs(player.position.y-sw.position.y)<1.0) {
                 current2DAxis = current2DAxis === 'X' ? 'Z' : 'X';
                 plane2DX = Math.round(sw.position.x); plane2DZ = Math.round(sw.position.z);
-                player.position.x = plane2DX; player.position.z = plane2DZ; // 位置を補正
+                player.position.x = plane2DX; player.position.z = plane2DZ; 
                 updateEditorPlane(); switchCooldown = 30; playSE('key'); break;
             }
         }
     }
 
-    // ★中間地点の判定
+    // ★修正: 中間地点を踏んだ時に次元（軸）の情報を保存する
     for (let cp of customCheckpoints) {
         if (!cp.userData.collected && Math.abs(player.position.x-cp.position.x)<0.8 && Math.abs(player.position.z-cp.position.z)<0.8 && Math.abs(player.position.y-cp.position.y)<1.0) {
             cp.userData.collected = true;
-            activeCheckpoint = { x: cp.position.x, y: cp.position.y + 1, z: cp.position.z, axis: current2DAxis, planeX: plane2DX, planeZ: plane2DZ };
-            if(cp.children[1]) cp.children[1].material.color.setHex(0x00ff00); // 旗を緑に
+            activeCheckpoint = { 
+                x: cp.position.x, y: cp.position.y + 1, z: cp.position.z, 
+                axis: cp.userData.axis2D || 'X', 
+                planeX: cp.userData.planeX || 0, 
+                planeZ: cp.userData.planeZ || 0 
+            };
+            if(cp.children[1]) cp.children[1].material.color.setHex(0x00ff00); 
             playSE('clear');
         }
     }
@@ -555,7 +613,7 @@ function animate() {
         let ix=0, iz=0; 
         if (gameCourseMode === '2D') { 
             if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1; 
-            if (current2DAxis === 'X') player.position.z = plane2DZ; else player.position.x = plane2DX; // 軸固定
+            if (current2DAxis === 'X') player.position.z = plane2DZ; else player.position.x = plane2DX; 
         } else { 
             if(keys.up||keys.w) iz-=1; if(keys.down||keys.s) iz+=1; if(keys.left||keys.a) ix-=1; if(keys.right||keys.d) ix+=1; 
         }

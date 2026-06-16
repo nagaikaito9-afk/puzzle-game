@@ -399,7 +399,7 @@ light.position.set(10, 20, 10);
 scene.add(light); 
 scene.add(new THREE.AmbientLight(0x808080));
 
-// ★ F11/全画面バグ修正：リサイズ対応
+// F11/全画面バグ修正：リサイズ対応
 window.addEventListener('resize', () => { 
     renderer.setSize(window.innerWidth, window.innerHeight); 
     camera.aspect = window.innerWidth / window.innerHeight; 
@@ -440,6 +440,17 @@ scene.add(player);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x7cfc00 })); 
 floor.rotation.x = -Math.PI / 2; 
 scene.add(floor);
+
+// ★ 2Dモード用の透明判定パネルとマス目（グリッド）を作成
+const plane2D = new THREE.Mesh(new THREE.PlaneGeometry(200, 100), new THREE.MeshBasicMaterial({ visible: false })); 
+plane2D.position.z = 0; 
+scene.add(plane2D);
+
+const gridHelper2D = new THREE.GridHelper(100, 100, 0xffaa44, 0xffcc88); // ネコ色のグリッド
+gridHelper2D.rotation.x = Math.PI / 2; 
+// Xを0.5ずらすことでマス目の中にブロックが綺麗にハマる
+gridHelper2D.position.set(0.5, 0, -0.51); 
+scene.add(gridHelper2D);
 
 const raycaster = new THREE.Raycaster(); 
 const mouse = new THREE.Vector2(); 
@@ -495,7 +506,6 @@ const baseBlocks = [
 
 let BLOCKS = [...baseBlocks];
 
-// さらに色を追加して100種類を達成
 const extraColors = [
     {id:'l_red', c:0xffb6c1}, {id:'l_blue', c:0xb0e0e6}, {id:'l_green', c:0x98fb98}, {id:'l_yellow', c:0xfffacd},
     {id:'d_red', c:0xcd5c5c}, {id:'d_blue', c:0x4169e1}, {id:'d_green', c:0x2e8b57}, {id:'d_yellow', c:0xdaa520},
@@ -523,7 +533,6 @@ function initSidebar() {
     
     let activeBlocks = [...BLOCKS];
     
-    // 2Dモードの時はハーフブロックをリストに追加
     if (gameCourseMode === '2D') {
         BLOCKS.forEach(base => {
             if (!base.pass && base.id !== 'start' && base.id !== 'goal' && base.id !== 'key' && base.id !== 'door' && !base.id.includes('warp')) {
@@ -684,6 +693,9 @@ function editCourseFromDetail() {
     }); 
     resetPlayerPosition(); 
     drawLinkLines(); 
+    
+    gridHelper2D.visible = (gameCourseMode === '2D');
+    plane2D.visible = (gameCourseMode === '2D');
 }
 
 function startEditor(mode) { 
@@ -700,18 +712,26 @@ function startEditor(mode) {
     selectBlock('normal'); 
     placeBlock('start', new THREE.Vector3(0, 0.5, 0), true, false); 
     resetPlayerPosition(); 
+    
+    // ★マス目（グリッド）と空間判定プレーンの表示切り替え
+    gridHelper2D.visible = (gameCourseMode === '2D');
+    plane2D.visible = (gameCourseMode === '2D');
 }
 
 function testPlay() { 
     showScreen('game-screen'); 
     currentMode = 'test'; 
     floor.visible = false; 
+    gridHelper2D.visible = false; // プレイ中はマス目を隠す！
+    plane2D.visible = false;
     resetPlayerPosition(); 
 }
 
 function loadAndPlayCourse(courseData, isTest = false) { 
     showScreen('game-screen'); 
     floor.visible = false; 
+    gridHelper2D.visible = false; // プレイ中はマス目を隠す！
+    plane2D.visible = false;
     clearScene(); 
     courseData.forEach(b => {
         placeBlock(b.type, new THREE.Vector3(b.x, b.y, b.z), false, false, b.uuid, b.warpTargetId, b.lockId, b.dir);
@@ -726,6 +746,9 @@ function quitPlay() {
         floor.visible = true; 
         resetPlayerPosition(); 
         drawLinkLines(); 
+        // エディタに戻ったらマス目を復活させる
+        gridHelper2D.visible = (gameCourseMode === '2D');
+        plane2D.visible = (gameCourseMode === '2D');
     } else { 
         showScreen('home-screen'); 
     } 
@@ -885,47 +908,71 @@ window.addEventListener('mousedown', e => {
     
     if (e.button === 0 && currentMode === 'editor') {
         mouse.set((e.clientX/window.innerWidth)*2-1, -(e.clientY/window.innerHeight)*2+1); 
+        
+        // ★2Dの場合は透明な壁もクリック対象に含めてマス目を認識させる
+        const targets = gameCourseMode === '2D' ? [plane2D, floor, ...meshList] : [floor, ...meshList];
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects([floor, ...meshList], true);
+        const intersects = raycaster.intersectObjects(targets, true);
         
         if (intersects.length > 0) {
             let hit = intersects[0].object; 
             while(hit.parent && hit.parent.type === 'Group') hit = hit.parent; 
             
             if (currentBlockType === 'eraser') { 
-                if (hit !== floor) { removeBlockMesh(hit); playSE('place'); } 
+                if (hit !== floor && hit !== plane2D) { removeBlockMesh(hit); playSE('place'); } 
             } else {
-                let n = new THREE.Vector3(0, 1, 0);
-                if (intersects[0].face) { 
-                    n.copy(intersects[0].face.normal); 
-                    const normalMatrix = new THREE.Matrix3().getNormalMatrix(intersects[0].object.matrixWorld); 
-                    n.applyMatrix3(normalMatrix).normalize(); 
-                    if (Math.abs(n.x) > Math.abs(n.y) && Math.abs(n.x) > Math.abs(n.z)) { n.set(Math.sign(n.x), 0, 0); } 
-                    else if (Math.abs(n.y) > Math.abs(n.x) && Math.abs(n.y) > Math.abs(n.z)) { n.set(0, Math.sign(n.y), 0); } 
-                    else { n.set(0, 0, Math.sign(n.z)); } 
-                }
-                
-                const isHalf = currentBlockType.includes('_half'); 
-                let py = intersects[0].point.y; 
-                let ny = n.y;
-                
-                const p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.1));
-                p.x = Math.round(p.x) + 0; 
-                
-                if (gameCourseMode === '2D') p.z = 0; 
-                else p.z = Math.round(p.z) + 0;
-                
-                if (isHalf) { 
-                    let decimalY = py % 1; 
-                    if(decimalY < 0) decimalY += 1; 
+                let p;
+                // 床や空中のマス目をクリックした場合
+                if (hit === floor || hit === plane2D) {
+                    p = new THREE.Vector3().copy(intersects[0].point);
+                    p.x = Math.round(p.x); 
                     
-                    if (ny === 1) p.y = Math.floor(py) + 0.25; 
-                    else if (ny === -1) p.y = Math.floor(py) - 0.25; 
-                    else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25); 
-                } else { 
-                    p.y = Math.floor(p.y) + 0.5; 
+                    if (gameCourseMode === '2D') {
+                        p.z = 0;
+                        const isHalf = currentBlockType.includes('_half');
+                        let decimalY = p.y % 1; if(decimalY < 0) decimalY += 1;
+                        if (isHalf) {
+                            p.y = Math.floor(p.y) + (decimalY > 0.5 ? 0.75 : 0.25);
+                        } else {
+                            p.y = Math.floor(p.y) + 0.5;
+                        }
+                    } else {
+                        p.y = 0.5; 
+                        p.z = Math.round(p.z);
+                    }
+                } else {
+                    // すでにあるブロックをクリックして隣に置く場合
+                    let n = new THREE.Vector3(0, 1, 0);
+                    if (intersects[0].face) { 
+                        n.copy(intersects[0].face.normal); 
+                        const normalMatrix = new THREE.Matrix3().getNormalMatrix(intersects[0].object.matrixWorld); 
+                        n.applyMatrix3(normalMatrix).normalize(); 
+                        if (Math.abs(n.x) > Math.abs(n.y) && Math.abs(n.x) > Math.abs(n.z)) { n.set(Math.sign(n.x), 0, 0); } 
+                        else if (Math.abs(n.y) > Math.abs(n.x) && Math.abs(n.y) > Math.abs(n.z)) { n.set(0, Math.sign(n.y), 0); } 
+                        else { n.set(0, 0, Math.sign(n.z)); } 
+                    }
+                    if (gameCourseMode === '2D') n.z = 0;
+                    
+                    const isHalf = currentBlockType.includes('_half'); 
+                    let py = intersects[0].point.y; 
+                    let ny = n.y;
+                    
+                    p = new THREE.Vector3().copy(intersects[0].point).add(n.multiplyScalar(0.1));
+                    p.x = Math.round(p.x); 
+                    if (gameCourseMode === '2D') p.z = 0; 
+                    else p.z = Math.round(p.z);
+                    
+                    if (isHalf) { 
+                        let decimalY = py % 1; 
+                        if(decimalY < 0) decimalY += 1; 
+                        
+                        if (ny === 1) p.y = Math.floor(py) + 0.25; 
+                        else if (ny === -1) p.y = Math.floor(py) - 0.25; 
+                        else p.y = Math.floor(py) + (decimalY > 0.5 ? 0.75 : 0.25); 
+                    } else { 
+                        p.y = Math.floor(p.y) + 0.5; 
+                    }
                 }
-                
                 placeBlock(currentBlockType, p);
             }
         }

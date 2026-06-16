@@ -92,24 +92,37 @@
         </div>
 
         <div id="course-detail-screen" class="screen hidden">
-            <h2 id="detail-title">コース名</h2>
-            <p>作者: <span id="detail-author"></span> (<span id="detail-mode"></span>)</p>
-            <p>❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
-            <button onclick="likeCourse()" id="like-btn" style="background-color:#ff66b2;">❤️ いいね！</button>
-            <button onclick="startPlayFromDetail()">🎮 プレイ開始</button>
-            <button onclick="editCourseFromDetail()" style="background-color:#f0ad4e;">🛠 エディタで開く</button>
-            <br><br><button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none;">🗑 このコースを削除</button>
-            <br><br>
-            <div id="comment-section" class="list-container" style="height:150px;"></div>
-            <select id="comment-select">
-                <option value="おもしろい！">おもしろい！</option>
-                <option value="難しい..">難しい..</option>
-                <option value="楽しい！">楽しい！</option>
-                <option value="神コース！">神コース！</option>
-                <option value="クリアできた！">クリアできた！</option>
-            </select>
-            <button onclick="postComment()" id="post-comment-btn">💬 コメント送信</button>
-            <br><button onclick="showScreen('course-list-screen')" style="background-color:#aaa;">戻る</button>
+            <div style="display: flex; flex-direction: row; width: 90%; max-width: 900px; height: 75%; gap: 30px; background: rgba(255,245,230,0.95); border: 4px solid #ffaa44; border-radius: 20px; padding: 30px; box-sizing: border-box;">
+                
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border-right: 2px dashed #ffcc88; padding-right: 20px;">
+                    <h2 id="detail-title" style="margin-top: 0; font-size: 32px; color: #ffaa44; text-align: center; width: 100%; word-break: break-all;">コース名</h2>
+                    <p style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">作者: <span id="detail-author"></span> (<span id="detail-mode"></span>)</p>
+                    <p style="font-size: 16px; margin-top: 0; margin-bottom: 20px;">❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
+                    
+                    <button onclick="likeCourse()" id="like-btn" style="background-color:#ff66b2; width: 90%; margin-bottom: 10px;">❤️ いいね！</button>
+                    <button onclick="startPlayFromDetail()" style="width: 90%; font-size: 20px; padding: 15px; margin-bottom: 10px;">🎮 プレイ開始</button>
+                    <button onclick="editCourseFromDetail()" style="background-color:#f0ad4e; width: 90%;">🛠 エディタで開く</button>
+                    
+                    <button onclick="deleteCourse()" id="delete-course-btn" style="background-color:#d9534f; display:none; width: 90%; margin-top: 15px;">🗑 このコースを削除</button>
+                    <button onclick="showScreen('course-list-screen')" style="background-color:#aaa; width: 90%; margin-top: auto;">戻る</button>
+                </div>
+                
+                <div style="flex: 1.5; display: flex; flex-direction: column;">
+                    <h3 style="margin-top: 0; color: #cc7722;">💬 みんなのコメント</h3>
+                    <div id="comment-section" class="list-container" style="flex: 1; width: 100%; max-height: none; height: auto; margin-bottom: 15px; border-radius: 10px; padding: 15px; background: rgba(255, 255, 255, 0.8);"></div>
+                    
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <select id="comment-select" style="flex: 1; font-size: 16px;">
+                            <option value="おもしろい！">おもしろい！</option>
+                            <option value="難しい..">難しい..</option>
+                            <option value="楽しい！">楽しい！</option>
+                            <option value="神コース！">神コース！</option>
+                            <option value="クリアできた！">クリアできた！</option>
+                        </select>
+                        <button onclick="postComment()" id="post-comment-btn" style="white-space: nowrap; padding: 10px 20px;">送信</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="settings-screen" class="screen hidden">

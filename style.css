@@ -1,13 +1,14 @@
 body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #222; color: white; }
 #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; pointer-events: none; }
+
 .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.85); pointer-events: auto; }
 .hidden { display: none !important; }
 
-button, input, select { padding: 10px; margin: 5px; font-size: 16px; border-radius: 5px; }
-button { cursor: pointer; background-color: #4CAF50; color: white; border: none; transition: 0.3s; }
+button, input, select { padding: 10px; margin: 5px; font-size: 16px; border-radius: 5px; border: none; }
+button { cursor: pointer; background-color: #4CAF50; color: white; transition: 0.3s; }
 button:hover { background-color: #45a049; }
-input { border: 1px solid #ccc; }
+input { border: 1px solid #ccc; color: black; }
 
 .list-container { display: flex; flex-direction: column; max-height: 40vh; overflow-y: auto; width: 320px; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; }
 .list-container button { width: 100%; margin: 5px 0; text-align: left; }
@@ -15,18 +16,22 @@ input { border: 1px solid #ccc; }
 
 .hud { position: absolute; top: 10px; left: 10px; pointer-events: auto; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
 
-/* ★右側のサイドバー（スクロール可能） */
+/* 右側サイドバー */
 .sidebar { 
-    position: absolute; right: 0; top: 0; width: 200px; height: 100vh; 
-    background: rgba(0, 0, 0, 0.75); overflow-y: auto; pointer-events: auto; 
+    position: absolute; right: 0; top: 0; width: 220px; height: 100vh; 
+    background: rgba(0, 0, 0, 0.8); overflow-y: auto; pointer-events: auto; 
     padding: 10px; box-sizing: border-box; display: flex; flex-direction: column;
 }
-/* サイドバー内のボタンの装飾 */
-.block-btn { width: 100%; text-align: left; padding: 8px; margin-bottom: 8px; background-color: #333; }
+.block-btn { width: 100%; text-align: left; padding: 8px; margin-bottom: 5px; background-color: #333; border: 2px solid transparent; border-radius: 5px; color:white; cursor:pointer;}
 .block-btn:hover { background-color: #555; }
-.block-title { font-weight: bold; font-size: 15px; display: block; }
-.block-desc { font-size: 11px; color: #ccc; }
+.block-title { font-weight: bold; font-size: 14px; display: block; }
+.block-desc { font-size: 11px; color: #aaa; display: block; }
 
 #clear-message { text-align: center; background: rgba(0, 0, 0, 0.9); padding: 40px; border-radius: 10px; pointer-events: auto; }
-#editor-screen, #game-screen { background: transparent; pointer-events: none; }
 #editor-screen .hud, #game-screen .hud { pointer-events: auto; }
+
+/* ★自作ダイアログ（ポップアップ）のデザイン */
+#custom-dialog-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; justify-content: center; align-items: center; pointer-events: auto; }
+#custom-dialog { background: #333; padding: 20px; border-radius: 10px; text-align: center; min-width: 300px; border: 2px solid #555; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+#custom-dialog h3 { margin-top: 0; font-size: 18px; white-space: pre-wrap; }
+#dialog-input { width: 80%; padding: 8px; margin-top: 10px; }

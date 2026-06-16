@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D パズルメーカー</title>
+    <title>3D & 2D パズルメーカー</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -12,25 +12,34 @@
 <body>
     <div id="canvas-container"></div>
 
+    <div id="custom-dialog-overlay" class="hidden">
+        <div id="custom-dialog">
+            <h3 id="dialog-msg">メッセージ</h3>
+            <input type="text" id="dialog-input" class="hidden" placeholder="入力してください">
+            <div style="margin-top:15px;">
+                <button id="dialog-btn-ok" style="background-color:#4CAF50;">OK</button>
+                <button id="dialog-btn-cancel" style="background-color:#d9534f;" class="hidden">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <div id="ui-layer">
-        
         <div id="login-screen" class="screen">
-            <h1>3D Puzzle Maker</h1>
+            <h1>Puzzle Maker</h1>
             <h2>ログイン</h2>
             <input type="text" id="login-id" placeholder="アカウント名">
             <input type="password" id="login-pass" placeholder="パスワード">
-            <div><label style="font-size: 14px; cursor: pointer;"><input type="checkbox" onchange="togglePass('login-pass')"> パスワードを表示</label></div>
+            <div><label style="font-size:14px; cursor:pointer;"><input type="checkbox" onchange="togglePass('login-pass')"> パスワードを表示</label></div>
             <button onclick="login()">ログイン</button>
-            <br><br>
-            <button onclick="showScreen('register-screen')">新しいアカウントを作成</button>
+            <br><br><button onclick="showScreen('register-screen')">新しいアカウントを作成</button>
         </div>
 
         <div id="register-screen" class="screen hidden">
             <h1>アカウント作成</h1>
-            <p style="color:yellow; font-size:12px;">※いたずら防止のため、1つの端末につき5つまで作成可能です</p>
+            <p style="color:yellow; font-size:12px;">※1端末につき5つまで作成可能</p>
             <input type="text" id="reg-id" placeholder="新しいアカウント名">
             <input type="password" id="reg-pass" placeholder="パスワード (6文字以上)">
-            <div><label style="font-size: 14px; cursor: pointer;"><input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示</label></div>
+            <div><label style="font-size:14px; cursor:pointer;"><input type="checkbox" onchange="togglePass('reg-pass')"> パスワードを表示</label></div>
             <button onclick="register()">作成してログイン</button>
             <button onclick="showScreen('login-screen')">戻る</button>
         </div>
@@ -38,10 +47,17 @@
         <div id="home-screen" class="screen hidden">
             <h1>ホーム</h1>
             <p>ようこそ、<span id="player-name-display"></span> さん！</p>
-            <button onclick="startEditor()">コースを作成</button>
+            <button onclick="showScreen('create-select-screen')">コースを作成</button>
             <button onclick="showScreen('play-select-screen')">コースをプレイ</button>
             <button onclick="showFriendsScreen()">フレンド</button>
             <button onclick="showScreen('settings-screen')">設定</button>
+        </div>
+
+        <div id="create-select-screen" class="screen hidden">
+            <h2>作成モードの選択</h2>
+            <button onclick="startEditor('3D')" style="background-color:#f0ad4e;">🌐 3Dコースを作成</button>
+            <button onclick="startEditor('2D')" style="background-color:#5bc0de;">👾 2Dコースを作成</button>
+            <br><br><button onclick="showScreen('home-screen')">戻る</button>
         </div>
 
         <div id="play-select-screen" class="screen hidden">
@@ -55,10 +71,10 @@
         <div id="friends-screen" class="screen hidden">
             <h2>フレンド</h2>
             <button onclick="sendFriendRequest()">＋ アカウント名でリクエスト送信</button>
-            <h3 style="margin-bottom: 5px;">📥 リクエスト一覧</h3>
-            <div id="friend-requests-container" class="list-container" style="max-height: 15vh; margin-bottom: 15px;"></div>
-            <h3 style="margin-bottom: 5px;">🤝 フレンド一覧</h3>
-            <div id="friends-list-container" class="list-container" style="max-height: 25vh;"></div>
+            <h3 style="margin-bottom:5px;">📥 リクエスト一覧</h3>
+            <div id="friend-requests-container" class="list-container" style="max-height:15vh; margin-bottom:15px;"></div>
+            <h3 style="margin-bottom:5px;">🤝 フレンド一覧</h3>
+            <div id="friends-list-container" class="list-container" style="max-height:25vh;"></div>
             <br><button onclick="showScreen('home-screen')">戻る</button>
         </div>
 
@@ -71,7 +87,7 @@
 
         <div id="course-detail-screen" class="screen hidden">
             <h2 id="detail-title">コース名</h2>
-            <p>作者: <span id="detail-author"></span></p>
+            <p>作者: <span id="detail-author"></span> (<span id="detail-mode"></span>)</p>
             <p>❤️ <span id="detail-likes">0</span> | プレイ: <span id="detail-plays">0</span> | クリア率: <span id="detail-clear-rate">0</span>%</p>
             <button onclick="likeCourse()" id="like-btn">❤️ いいね！</button>
             <button onclick="startPlayFromDetail()">プレイ開始</button>
@@ -85,11 +101,6 @@
                 <option value="楽しい！">楽しい！</option>
                 <option value="神コース！">神コース！</option>
                 <option value="クリアできた！">クリアできた！</option>
-                <option value="惜しい！">惜しい！</option>
-                <option value="いいね！">いいね！</option>
-                <option value="天才！">天才！</option>
-                <option value="デザインが好き！">デザインが好き！</option>
-                <option value="また遊びたい！">また遊びたい！</option>
             </select>
             <button onclick="postComment()" id="post-comment-btn">コメント送信</button>
             <br><button onclick="showScreen('course-list-screen')">戻る</button>
@@ -105,21 +116,20 @@
 
         <div id="editor-screen" class="screen hidden">
             <div class="hud">
-                <span>モード: エディタ</span><br>
-                <span style="font-size:12px; color:#ff0;">※カギ/ドア/ワープは「右クリック」でペア設定！</span><br>
+                <span id="editor-mode-display">モード: エディタ</span><br>
+                <span style="font-size:12px; color:#ff0;">※コンベア/ペア設定は「右クリック」！</span><br>
                 <button onclick="testPlay()">完成（チェック）</button>
                 <button onclick="showScreen('home-screen')">ホームに戻る</button>
             </div>
-            
             <div id="editor-sidebar" class="sidebar">
-                <button onclick="selectBlock('eraser')" style="background-color:#d9534f; margin-bottom:15px;">🧹 消しゴム</button>
+                <button onclick="selectBlock('eraser')" style="background-color:#d9534f; margin-bottom:15px;" class="block-btn">🧹 消しゴム</button>
                 <div id="block-list-container"></div>
             </div>
         </div>
 
         <div id="game-screen" class="screen hidden">
             <div class="hud" id="play-hud">
-                <span>プレイ中 <span style="font-size:12px;">(V:一人称/三人称)</span></span>
+                <span>プレイ中 <span style="font-size:12px;">(W/Space:ジャンプ, S/Shift:しゃがみ)</span></span>
                 <button onclick="quitPlay()">やめる</button>
             </div>
             <div id="clear-message" class="hidden">
@@ -129,9 +139,7 @@
                 <button id="btn-back-home" onclick="quitPlay()" class="hidden">戻る</button>
             </div>
         </div>
-
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>
